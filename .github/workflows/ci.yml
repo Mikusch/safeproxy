@@ -1,0 +1,199 @@
+name: Build Extension
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        sm:
+          - label: sm1.12
+            ref: 1.12-dev
+          - label: sm1.13
+            ref: master
+        build:
+          - os: ubuntu-latest
+            container: ghcr.io/alliedmodders/build-containers/debian11-clang22:latest
+            target: x86
+            platform: linux32
+          - os: ubuntu-latest
+            container: ghcr.io/alliedmodders/build-containers/debian11-clang22:latest
+            target: x86_64
+            platform: linux64
+          - os: windows-latest
+            target: x86
+            platform: win32
+          - os: windows-latest
+            target: x86_64
+            platform: win64
+
+    name: Build (${{ matrix.sm.label }}-${{ matrix.build.platform }})
+    runs-on: ${{ matrix.build.os }}
+    container: ${{ matrix.build.container || null }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Checkout hl2sdks
+        shell: bash
+        run: |
+          for sdk in tf2 css dods hl2dm; do
+            git clone --depth 1 --branch $sdk https://github.com/alliedmodders/hl2sdk cache/hl2sdk-$sdk
+          done
+
+      - name: Checkout AMBuild
+        uses: actions/checkout@v7
+        with:
+          repository: alliedmodders/ambuild
+          ref: master
+          path: cache/ambuild
+          fetch-depth: 1
+
+      - name: Checkout SourceMod
+        uses: actions/checkout@v7
+        with:
+          repository: alliedmodders/sourcemod
+          ref: ${{ matrix.sm.ref }}
+          path: cache/sourcemod
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Checkout Metamod:Source
+        uses: actions/checkout@v7
+        with:
+          repository: alliedmodders/metamod-source
+          ref: 1.12-dev
+          path: cache/metamod-source
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install AMBuild
+        run: pip3 install ./cache/ambuild
+
+      - name: Build
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$(pwd)"
+          mkdir -p build && cd build
+          python3 ../configure.py \
+            --sdk=tf2,css,dods,hl2dm \
+            --mms-path="../cache/metamod-source" \
+            --sm-path="../cache/sourcemod" \
+            --sdk-root="../cache" \
+            --enable-optimize \
+            --enable-auto-versioning \
+            --targets ${{ matrix.build.target }}
+          ambuild
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SafeProxy-${{ matrix.sm.label }}-${{ matrix.build.platform }}
+          path: build/package
+
+  include:
+    strategy:
+      fail-fast: false
+      matrix:
+        sm: ['1.12', '1.13']
+
+    name: Check include (sm${{ matrix.sm }})
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download SourceMod
+        run: |
+          file=$(curl -fsSL "https://sm.alliedmods.net/smdrop/${{ matrix.sm }}/sourcemod-latest-linux")
+          curl -fsSL "https://sm.alliedmods.net/smdrop/${{ matrix.sm }}/$file" | tar -xz
+
+      - name: Compile
+        run: |
+          scripting=addons/sourcemod/scripting
+          printf '#include <sourcemod>\n#include <safeproxy>\n\npublic void OnPluginStart()\n{\n}\n' > /tmp/include_check.sp
+          "$scripting/spcomp" /tmp/include_check.sp -i include -i "$scripting/include" -o /tmp/include_check.smx
+
+      - name: Check native registration
+        shell: bash
+        run: |
+          declared=$(grep -oP '^native\s.*?\K\w+(?=\()' include/safeproxy.inc | sort)
+          diff <(echo "$declared") <(grep -oP '^\s*\{\s*"\K\w+' src/natives.cpp | sort)
+          diff <(echo "$declared") <(grep -oP 'MarkNativeAsOptional\("\K\w+' include/safeproxy.inc | sort)
+
+  release:
+    name: Release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [build, include]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check for version change
+        id: version
+        run: |
+          version=$(cat product.version | tr -d '[:space:]')
+          draft=$(gh release view "$version" --json isDraft -q .isDraft 2>/dev/null || true)
+          echo "tag=$version" >> "$GITHUB_OUTPUT"
+          if [ "$draft" = false ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download artifacts
+        if: steps.version.outputs.published == 'false'
+        uses: actions/download-artifact@v8
+
+      - name: Package
+        if: steps.version.outputs.published == 'false'
+        shell: bash
+        run: |
+          for dir in SafeProxy-sm*-linux32; do
+            sm="${dir#SafeProxy-}"; sm="${sm%-linux32}"
+            mkdir "SafeProxy-$sm-linux" "SafeProxy-$sm-windows"
+            cp -r "SafeProxy-$sm-linux32"/* "SafeProxy-$sm-linux/"
+            cp -r "SafeProxy-$sm-linux64"/* "SafeProxy-$sm-linux/"
+            cp -r "SafeProxy-$sm-win32"/* "SafeProxy-$sm-windows/"
+            cp -r "SafeProxy-$sm-win64"/* "SafeProxy-$sm-windows/"
+            tar --owner=0 --group=0 --numeric-owner -czf "SafeProxy-$sm-linux.tar.gz" -C "SafeProxy-$sm-linux" addons
+            (cd "SafeProxy-$sm-windows" && zip -r "../SafeProxy-$sm-windows.zip" addons)
+          done
+
+      - name: Create release
+        if: steps.version.outputs.published == 'false'
+        run: |
+          # A run that finishes after a newer push must not overwrite that push's assets.
+          [ "$(git ls-remote origin refs/heads/master | cut -f1)" = "$GITHUB_SHA" ] || exit 0
+          tag="${{ steps.version.outputs.tag }}"
+          draft=$(gh release view "$tag" --json isDraft -q .isDraft 2>/dev/null || true)
+          if [ "$draft" = true ]; then
+            gh release upload "$tag" SafeProxy-sm*-linux.tar.gz SafeProxy-sm*-windows.zip --clobber
+            gh release edit "$tag" --target "$GITHUB_SHA"
+          elif [ -z "$draft" ]; then
+            gh release create "$tag" SafeProxy-sm*-linux.tar.gz SafeProxy-sm*-windows.zip \
+              --target "$GITHUB_SHA" --generate-notes --draft
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

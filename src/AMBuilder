@@ -1,0 +1,53 @@
+# vim: set sts=2 ts=8 sw=2 tw=99 et ft=python:
+import os
+
+projectName = 'safeproxy'
+
+sourceFiles = [
+  'callbacks.cpp',
+  'extension.cpp',
+  'gamedata.cpp',
+  'hooks.cpp',
+  'overrides.cpp',
+  'natives.cpp',
+  'reencode.cpp',
+  'transmit.cpp',
+  os.path.join(Extension.sm_root, 'public', 'CDetour', 'detours.cpp'),
+]
+
+project = builder.LibraryProject(projectName)
+
+if os.path.isfile(os.path.join(builder.currentSourcePath, 'sdk', 'smsdk_ext.cpp')):
+  # Use the copy included in the project
+  project.sources += [os.path.join('sdk', 'smsdk_ext.cpp')]
+else:
+  # Use the copy included with SM 1.6 and newer
+  project.sources += [os.path.join(Extension.sm_root, 'public', 'smsdk_ext.cpp')]
+
+project.sources += sourceFiles
+
+for sdk_name in Extension.sdks:
+  sdk = Extension.sdks[sdk_name]
+  if sdk['name'] in ['mock']:
+    continue
+
+  for cxx in builder.targets:
+    if not cxx.target.arch in sdk['platforms'][cxx.target.platform]:
+      continue
+
+    binary = Extension.HL2ExtConfig(project, builder, cxx, projectName + '.ext.' + sdk['extension'], sdk)
+
+    binary.compiler.cxxincludes += [
+      os.path.join(builder.sourcePath, 'third_party', 'safetyhook', 'include'),
+    ]
+
+    linked = False
+    for task in Extension.libsafetyhook:
+      if task.target.arch == cxx.target.arch:
+        binary.compiler.linkflags += [task.binary]
+        linked = True
+        break
+    if not linked:
+      raise Exception('No matching safetyhook build for arch {}'.format(cxx.target.arch))
+
+Extension.extensions += builder.Add(project)

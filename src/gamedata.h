@@ -1,0 +1,54 @@
+#ifndef _INCLUDE_SAFEPROXY_GAMEDATA_H_
+#define _INCLUDE_SAFEPROXY_GAMEDATA_H_
+
+#include "smsdk_ext.h"
+
+class SendTable;
+class CSendProxyRecipients;
+template <class T, class I> class CUtlMemory;
+class bf_write;
+
+namespace safeproxy {
+
+typedef bool (*SendTable_Encode_t)(const SendTable *pTable, const void *pStruct, bf_write *pOut, int objectID, CUtlMemory<CSendProxyRecipients, int> *pRecipients, bool bNonZeroOnly);
+
+typedef int (*SendTable_CalcDelta_t)(const SendTable *pTable, const void *pFromState, int nFromBits, const void *pToState, int nToBits, int *pDeltaProps, int nMaxDeltaProps, int objectID);
+
+struct GamedataOffsets
+{
+	SendTable_Encode_t SendTable_Encode = nullptr;
+	SendTable_CalcDelta_t SendTable_CalcDelta = nullptr;
+
+	void *SV_ComputeClientPacks = nullptr;
+	void *CFrameSnapshotManager_GetPackedEntity = nullptr;
+	void *CBaseServer_WriteDeltaEntities = nullptr;
+
+	int CBaseEntity_SetTransmit = -1;
+
+	int CBaseClient_IClientOffset = -1;
+
+	int CFrameSnapshot_nTickCount = -1;
+	int CFrameSnapshot_pEntities = -1;
+	int CFrameSnapshotEntry_Size = -1;
+	int CFrameSnapshotEntry_pPackedData = -1;
+
+	int PackedEntity_Size = -1;
+	int PackedEntity_pData = -1;
+	int PackedEntity_nBits = -1;
+	int PackedEntity_pChangeFrameList = -1;
+
+	int CBaseClient_m_pBaseline = -1;
+	int CBaseClient_m_nBaselineUpdateTick = -1;
+	int CBaseClient_m_BaselinesSent = -1;
+
+	int CGameClient_m_pCurrentFrame = -1;
+	int CClientFrame_transmit_entity = -1;
+};
+
+extern const GamedataOffsets &g_Offsets;
+
+bool LoadGameData(char *error, size_t maxlen);
+
+} // namespace safeproxy
+
+#endif // _INCLUDE_SAFEPROXY_GAMEDATA_H_
