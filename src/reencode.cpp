@@ -3,6 +3,7 @@
 #include "common.h"
 #include "overrides.h"
 #include "gamedata.h"
+#include "hooks.h"
 #include "transmit.h"
 
 #include <algorithm>
@@ -387,13 +388,6 @@ T ReadField(const void *base, int offset)
 	return value;
 }
 
-// CFrameSnapshotManager::GetPackedEntity without the redirect.
-const PackedEntity *EnginePackedEntity(const CFrameSnapshot *snapshot, int entity)
-{
-	const uint8_t *entries = ReadField<const uint8_t *>(snapshot, g_Offsets.CFrameSnapshot_pEntities);
-	return ReadField<const PackedEntity *>(entries + entity * g_Offsets.CFrameSnapshotEntry_Size, g_Offsets.CFrameSnapshotEntry_pPackedData);
-}
-
 PackedEntity *RedirectPackedEntity(std::vector<unsigned char> &buf, const PackedEntity *original, const Payload *payload, IChangeFrameList *change_frames)
 {
 	const int size = g_Offsets.PackedEntity_Size;
@@ -609,7 +603,7 @@ void EncodeOverrides(CFrameSnapshot *snapshot, const std::bitset<SM_MAXPLAYERS> 
 		// Only snapshot entities that some client transmits are packed.
 		if (!IsSnapshotEntity(entity_index))
 			continue;
-		const PackedEntity *engine_pack = EnginePackedEntity(snapshot, entity_index);
+		const PackedEntity *engine_pack = EngineGetPackedEntity(snapshot, entity_index);
 		if (!engine_pack)
 			continue;
 		const void *engine_data = ReadField<const void *>(engine_pack, g_Offsets.PackedEntity_pData);
@@ -803,8 +797,7 @@ void PostComputePacks(int clientCount, CGameClient **clients, CFrameSnapshot *sn
 	std::bitset<SM_MAXPLAYERS> receiving;
 	for (int i = 0; i < clientCount; ++i)
 	{
-		// CGameClient's first base is CBaseClient.
-		IClient *iclient = reinterpret_cast<IClient *>(reinterpret_cast<uintptr_t>(clients[i]) + g_Offsets.CBaseClient_IClientOffset);
+		IClient *iclient = reinterpret_cast<IClient *>(reinterpret_cast<uintptr_t>(clients[i]) + kBaseClientIClientOffset);
 		int slot = iclient->GetPlayerSlot();
 		if (iclient->IsFakeClient())
 		{
@@ -924,26 +917,29 @@ void OnBaselineUpdateSent(int slot, int tick, const uint32_t *baselines_sent)
 	});
 }
 
-void SettleBaselineUpdate(int slot, int update_tick, const void *baseline, const uint32_t *baselines_sent)
+void OnBaselineAccepted(int slot, int tick, const uint32_t *baselines_sent)
 {
 	SlotState &s = s_slots[slot];
-	if (s.pending_baseline_tick < 0 || update_tick == s.pending_baseline_tick)
+	// An update sent before the load stays unknown.
+	if (tick != s.pending_baseline_tick)
 		return;
 
-	// The update is over. ProcessBaselineAck stamps the baseline with its tick only if it accepted the ack.
-	if (baseline && ReadField<int>(baseline, g_Offsets.CFrameSnapshot_nTickCount) == s.pending_baseline_tick)
-	{
-		ForEachSetBit(baselines_sent, [&](int entity) {
-			if (auto it = s.pending_baseline.find(entity); it != s.pending_baseline.end())
-				s.baseline[entity] = it->second;
-			else
-				s.baseline.erase(entity);
-			s.baseline_unknown.reset(entity);
-		});
-	}
+	ForEachSetBit(baselines_sent, [&](int entity) {
+		if (auto it = s.pending_baseline.find(entity); it != s.pending_baseline.end())
+			s.baseline[entity] = it->second;
+		else
+			s.baseline.erase(entity);
+		s.baseline_unknown.reset(entity);
+	});
 
 	s.pending_baseline_tick = -1;
 	s.pending_baseline.clear();
+}
+
+void OnBaselineAckFailed(int slot, const uint32_t *baselines_sent)
+{
+	SlotState &s = s_slots[slot];
+	ForEachSetBit(baselines_sent, [&](int entity) { s.baseline_unknown.set(entity); });
 }
 
 } // namespace safeproxy

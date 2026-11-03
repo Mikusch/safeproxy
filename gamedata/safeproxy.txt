@@ -55,41 +55,6 @@
 				"windows"	"22"
 				"windows64"	"22"
 			}
-			"CBaseClient::IClientOffset"
-			{
-				"linux"		"4"
-				"linux64"	"8"
-				"windows"	"4"
-				"windows64"	"8"
-			}
-			"CFrameSnapshot::m_nTickCount"
-			{
-				"linux"		"4"
-				"linux64"	"4"
-				"windows"	"4"
-				"windows64"	"4"
-			}
-			"CFrameSnapshot::m_pEntities"
-			{
-				"linux"		"8"
-				"linux64"	"8"
-				"windows"	"8"
-				"windows64"	"8"
-			}
-			"CFrameSnapshotEntry::Size"
-			{
-				"linux"		"12"
-				"linux64"	"24"
-				"windows"	"12"
-				"windows64"	"24"
-			}
-			"CFrameSnapshotEntry::m_pPackedData"
-			{
-				"linux"		"8"
-				"linux64"	"16"
-				"windows"	"8"
-				"windows64"	"16"
-			}
 			"PackedEntity::Size"
 			{
 				"linux"		"52"
@@ -153,27 +118,6 @@
 				"linux64"	"16"
 				"windows"	"12"
 				"windows64"	"16"
-			}
-		}
-	}
-
-	"tf"
-	{
-		"Offsets"
-		{
-			"CFrameSnapshot::m_nTickCount"
-			{
-				"linux"		"0"
-				"linux64"	"0"
-				"windows"	"0"
-				"windows64"	"0"
-			}
-			"CFrameSnapshot::m_pEntities"
-			{
-				"linux"		"4"
-				"linux64"	"8"
-				"windows"	"4"
-				"windows64"	"8"
 			}
 		}
 	}

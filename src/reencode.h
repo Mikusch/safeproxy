@@ -39,7 +39,9 @@ void PreWriteDelta(int slot, const void *baseline);
 
 void OnBaselineUpdateSent(int slot, int tick, const uint32_t *baselines_sent);
 
-void SettleBaselineUpdate(int slot, int update_tick, const void *baseline, const uint32_t *baselines_sent);
+void OnBaselineAccepted(int slot, int tick, const uint32_t *baselines_sent);
+
+void OnBaselineAckFailed(int slot, const uint32_t *baselines_sent);
 
 } // namespace safeproxy
 
