@@ -4,6 +4,8 @@
 #include "smsdk_ext.h"
 
 class IServer;
+class CFrameSnapshot;
+class PackedEntity;
 
 extern IServer *g_pServer;
 
@@ -12,6 +14,9 @@ namespace safeproxy {
 bool InstallHooks(char *error, size_t maxlen);
 
 void UnloadHooks();
+
+// CFrameSnapshotManager::GetPackedEntity without the redirect.
+PackedEntity *EngineGetPackedEntity(CFrameSnapshot *snapshot, int entity);
 
 } // namespace safeproxy
 

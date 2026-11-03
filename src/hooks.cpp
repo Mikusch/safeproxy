@@ -7,12 +7,15 @@
 
 #include <CDetour/detours.h>
 #include <iclient.h>
+#include <inetmsghandler.h>
 
 IServer *g_pServer;
 
 class CBaseClient;
 class CClientFrame;
 class bf_write;
+
+SH_DECL_HOOK1(IClientMessageHandler, ProcessBaselineAck, SH_NOATTRIB, 0, bool, CLC_BaselineAck *);
 
 namespace safeproxy {
 
@@ -22,8 +25,84 @@ CDetour *s_SVComputeClientPacks_detour;
 CDetour *s_GetPackedEntity_detour;
 CDetour *s_WriteDeltaEntities_detour;
 
+bool s_BaselineAckHookTried;
+int s_BaselineAckHookID;
+int s_BaselineAckPostHookID;
+
+uint8_t *BaseClientOf(IClientMessageHandler *handler)
+{
+	return reinterpret_cast<uint8_t *>(handler) - kBaseClientMessageHandlerOffset;
+}
+
+int BaselineUpdateTick(const uint8_t *base)
+{
+	return *reinterpret_cast<const int *>(base + g_Offsets.CBaseClient_m_nBaselineUpdateTick);
+}
+
+// Acks are processed between sends, never during one.
+int s_ackedUpdateTick = -1;
+
+bool Hook_ProcessBaselineAck(CLC_BaselineAck *msg)
+{
+	s_ackedUpdateTick = BaselineUpdateTick(BaseClientOf(META_IFACEPTR(IClientMessageHandler)));
+	RETURN_META_VALUE(MRES_IGNORED, true);
+}
+
+bool Hook_ProcessBaselineAck_Post(CLC_BaselineAck *msg)
+{
+	if (s_ackedUpdateTick < 0)
+		RETURN_META_VALUE(MRES_IGNORED, true);
+
+	uint8_t *base = BaseClientOf(META_IFACEPTR(IClientMessageHandler));
+	IClient *iclient = reinterpret_cast<IClient *>(base + kBaseClientIClientOffset);
+	const uint32_t *baselines_sent = reinterpret_cast<const uint32_t *>(base + g_Offsets.CBaseClient_m_BaselinesSent);
+	// Only an accepted ack clears m_nBaselineUpdateTick inside the call.
+	if (BaselineUpdateTick(base) < 0)
+		OnBaselineAccepted(iclient->GetPlayerSlot(), s_ackedUpdateTick, baselines_sent);
+	// A failed ack can leave part of the update in the engine's baseline.
+	else if (!META_RESULT_ORIG_RET(bool))
+		OnBaselineAckFailed(iclient->GetPlayerSlot(), baselines_sent);
+	RETURN_META_VALUE(MRES_IGNORED, true);
+}
+
+void UnloadBaselineAckHook()
+{
+	int *hook_ids[] = {
+		&s_BaselineAckPostHookID,
+		&s_BaselineAckHookID,
+	};
+
+	for (int *hook_id : hook_ids)
+	{
+		if (*hook_id)
+		{
+			SH_REMOVE_HOOK_ID(*hook_id);
+			*hook_id = 0;
+		}
+	}
+}
+
+// Every CGameClient shares the hooked vtable.
+void InstallBaselineAckHook(CGameClient *client)
+{
+	s_BaselineAckHookTried = true;
+
+	IClientMessageHandler *handler = reinterpret_cast<IClientMessageHandler *>(reinterpret_cast<uint8_t *>(client) + kBaseClientMessageHandlerOffset);
+	s_BaselineAckHookID = SH_ADD_VPHOOK(IClientMessageHandler, ProcessBaselineAck, handler, SH_STATIC(Hook_ProcessBaselineAck), false);
+	s_BaselineAckPostHookID = SH_ADD_VPHOOK(IClientMessageHandler, ProcessBaselineAck, handler, SH_STATIC(Hook_ProcessBaselineAck_Post), true);
+	if (!s_BaselineAckHookID || !s_BaselineAckPostHookID)
+	{
+		UnloadBaselineAckHook();
+		g_pSM->LogError(myself, "Could not hook IClientMessageHandler::ProcessBaselineAck");
+	}
+}
+
 DETOUR_DECL_STATIC3(Detour_SV_ComputeClientPacks, void, int, clientCount, CGameClient **, clients, CFrameSnapshot *, snapshot)
 {
+	// Packing runs before this frame's sends, so the hook is in place before any baseline update.
+	if (!s_BaselineAckHookTried && clientCount > 0)
+		InstallBaselineAckHook(clients[0]);
+
 	PreComputePacks(clientCount);
 	DETOUR_STATIC_CALL(Detour_SV_ComputeClientPacks)(clientCount, clients, snapshot);
 	PostComputePacks(clientCount, clients, snapshot);
@@ -46,7 +125,7 @@ DETOUR_DECL_MEMBER4(Detour_WriteDeltaEntities, void, CBaseClient *, client, CCli
 	}
 
 	uint8_t *base = reinterpret_cast<uint8_t *>(client);
-	IClient *iclient = reinterpret_cast<IClient *>(base + g_Offsets.CBaseClient_IClientOffset);
+	IClient *iclient = reinterpret_cast<IClient *>(base + kBaseClientIClientOffset);
 	// SourceTV and Replay demo writers call this with their bot. Demos keep the real state.
 	int slot = iclient->IsFakeClient() ? -1 : iclient->GetPlayerSlot();
 
@@ -54,9 +133,6 @@ DETOUR_DECL_MEMBER4(Detour_WriteDeltaEntities, void, CBaseClient *, client, CCli
 	const int &baseline_update_tick = *reinterpret_cast<int *>(base + g_Offsets.CBaseClient_m_nBaselineUpdateTick);
 	const uint32_t *baselines_sent = reinterpret_cast<const uint32_t *>(base + g_Offsets.CBaseClient_m_BaselinesSent);
 	const int pending_before = baseline_update_tick;
-
-	if (slot >= 0)
-		SettleBaselineUpdate(slot, pending_before, baseline, baselines_sent);
 
 	PreWriteDelta(slot, baseline);
 	DETOUR_MEMBER_CALL(Detour_WriteDeltaEntities)(client, to, from, pBuf);
@@ -68,6 +144,13 @@ DETOUR_DECL_MEMBER4(Detour_WriteDeltaEntities, void, CBaseClient *, client, CCli
 }
 
 } // anonymous namespace
+
+PackedEntity *EngineGetPackedEntity(CFrameSnapshot *snapshot, int entity)
+{
+	// The engine's GetPackedEntity never reads its this pointer.
+	static Detour_GetPackedEntityClass manager;
+	return (manager.*Detour_GetPackedEntityClass::Detour_GetPackedEntity_Actual)(snapshot, entity);
+}
 
 bool InstallHooks(char *error, size_t maxlen)
 {
@@ -100,6 +183,9 @@ bool InstallHooks(char *error, size_t maxlen)
 
 void UnloadHooks()
 {
+	UnloadBaselineAckHook();
+	s_BaselineAckHookTried = false;
+
 	CDetour **detours[] = {
 		&s_WriteDeltaEntities_detour,
 		&s_GetPackedEntity_detour,
