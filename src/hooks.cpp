@@ -146,7 +146,7 @@ DETOUR_DECL_MEMBER4(Detour_WriteDeltaEntities, void, CBaseClient *, client, CCli
 		OnBaselineUpdateSent(slot, baseline_update_tick, baselines_sent);
 }
 
-// Send threads call this too. A client disconnected mid-snapshot has a null edict, which the game reads as the world.
+// sv_parallel_sendsnapshot runs this on several threads. A client disconnected mid-snapshot has a null edict, which the game reads as the world.
 DETOUR_DECL_MEMBER2(Detour_GetReplayDelay, int, edict_t *, player, int &, entity)
 {
 	if (!player)
