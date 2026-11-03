@@ -60,7 +60,7 @@ Forcing the target sends it to the hunter even when the game wouldn't, so the ou
 void SetBountyTarget(int hunter, int target)
 {
 	int bit = 1 << view_as<int>(TFCond_MarkedForDeath);
-	SafeProxy_SetProp(target, "m_bGlowEnabled", 1, hunter);
+	SafeProxy_SetProp(target, "m_bGlowEnabled", true, hunter);
 	SafeProxy_SetPropBits(target, "m_nPlayerCond", bit, bit, hunter);
 	SafeProxy_SetTransmit(target, SafeProxyTransmit_ForceWithChildren, hunter);
 }
@@ -101,7 +101,7 @@ Action Callback_GlowEnabled(int player, const char[] prop, int &value, int clien
 	if (!IsPlayerAlive(player) || GetClientHealth(player) * 2 >= GetEntProp(player, Prop_Data, "m_iMaxHealth"))
 		return Plugin_Continue;
 
-	value = 1;
+	value = true;
 	return Plugin_Changed;
 }
 ```
