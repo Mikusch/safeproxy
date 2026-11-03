@@ -6,9 +6,11 @@
 #include <cstdio>
 
 #include <CDetour/detours.h>
+#include <eiface.h>
 #include <iclient.h>
 
 IServer *g_pServer;
+IServerGameClients *g_pServerGameClients;
 
 class CBaseClient;
 class CClientFrame;
@@ -21,6 +23,7 @@ namespace {
 CDetour *s_SVComputeClientPacks_detour;
 CDetour *s_GetPackedEntity_detour;
 CDetour *s_WriteDeltaEntities_detour;
+CDetour *s_GetReplayDelay_detour;
 
 DETOUR_DECL_STATIC3(Detour_SV_ComputeClientPacks, void, int, clientCount, CGameClient **, clients, CFrameSnapshot *, snapshot)
 {
@@ -67,6 +70,14 @@ DETOUR_DECL_MEMBER4(Detour_WriteDeltaEntities, void, CBaseClient *, client, CCli
 		OnBaselineUpdateSent(slot, baseline_update_tick, baselines_sent);
 }
 
+// Send threads call this too. A client disconnected mid-snapshot has a null edict, which the game reads as the world.
+DETOUR_DECL_MEMBER2(Detour_GetReplayDelay, int, edict_t *, player, int &, entity)
+{
+	if (!player)
+		return 0;
+	return DETOUR_MEMBER_CALL(Detour_GetReplayDelay)(player, entity);
+}
+
 } // anonymous namespace
 
 bool InstallHooks(char *error, size_t maxlen)
@@ -92,15 +103,25 @@ bool InstallHooks(char *error, size_t maxlen)
 		return false;
 	}
 
+	void *get_replay_delay = SH_GET_ORIG_VFNPTR_ENTRY(g_pServerGameClients, &IServerGameClients::GetReplayDelay);
+	s_GetReplayDelay_detour = DETOUR_CREATE_MEMBER(Detour_GetReplayDelay, get_replay_delay);
+	if (!s_GetReplayDelay_detour)
+	{
+		snprintf(error, maxlen, "Could not create IServerGameClients::GetReplayDelay detour");
+		return false;
+	}
+
 	s_SVComputeClientPacks_detour->EnableDetour();
 	s_GetPackedEntity_detour->EnableDetour();
 	s_WriteDeltaEntities_detour->EnableDetour();
+	s_GetReplayDelay_detour->EnableDetour();
 	return true;
 }
 
 void UnloadHooks()
 {
 	CDetour **detours[] = {
+		&s_GetReplayDelay_detour,
 		&s_WriteDeltaEntities_detour,
 		&s_GetPackedEntity_detour,
 		&s_SVComputeClientPacks_detour,
