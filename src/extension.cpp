@@ -85,6 +85,8 @@ bool CSafeProxyExt::InterceptClientConnect(int client, char *error, size_t maxle
 {
 	safeproxy::g_OverrideStore.OnClientDisconnected(client);
 	safeproxy::g_TransmitStore.OnClientDisconnected(client);
+	// The encode a client was disconnected in can still write to its slot.
+	safeproxy::ClearReencodeSlot(client - 1);
 	return true;
 }
 
