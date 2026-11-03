@@ -68,12 +68,14 @@ bool s_snapshotEntitiesPending;
 std::array<const CCheckTransmitInfo *, SM_MAXPLAYERS> s_transmitInfo;
 
 // The info is CGameClient::m_PackInfo, and its m_pTransmitEdict points into the current frame.
-void DropCurrentFrame(const CCheckTransmitInfo *info)
+bool DropCurrentFrame(const CCheckTransmitInfo *info)
 {
 	uint8_t *base = reinterpret_cast<uint8_t *>(const_cast<CCheckTransmitInfo *>(info));
 	uint8_t *&frame = *reinterpret_cast<uint8_t **>(base + g_Offsets.CGameClient_m_pCurrentFrame);
-	if (frame && reinterpret_cast<const uint8_t *>(info->m_pTransmitEdict) == frame + g_Offsets.CClientFrame_transmit_entity)
-		frame = nullptr;
+	if (!frame || reinterpret_cast<const uint8_t *>(info->m_pTransmitEdict) != frame + g_Offsets.CClientFrame_transmit_entity)
+		return false;
+	frame = nullptr;
+	return true;
 }
 
 struct SentEntities
@@ -200,8 +202,8 @@ bool IsTransmittedTo(int slot, int entity_index)
 void ForgetTransmitInfo(int slot)
 {
 	// A client disconnected by a prop callback or send proxy still gets this snapshot from its freed frame. The engine skips a client without a frame.
-	if (s_transmitInfo[slot] && (IsEvaluatingHooks() || IsEncoding()))
-		DropCurrentFrame(s_transmitInfo[slot]);
+	if (s_transmitInfo[slot] && (IsEvaluatingHooks() || IsEncoding()) && !DropCurrentFrame(s_transmitInfo[slot]))
+		g_pSM->LogError(myself, "Could not drop the frame of client %d, which was disconnected mid-snapshot", slot + 1);
 	s_transmitInfo[slot] = nullptr;
 }
 
