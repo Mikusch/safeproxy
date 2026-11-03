@@ -21,7 +21,6 @@ public:
 #endif
 
 	bool InterceptClientConnect(int client, char *error, size_t maxlength) override;
-	void OnClientConnected(int client) override;
 	void OnClientDisconnecting(int client) override;
 	void OnClientDisconnected(int client) override;
 
