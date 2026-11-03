@@ -937,4 +937,10 @@ void OnBaselineAccepted(int slot, int tick, const uint32_t *baselines_sent)
 	s.pending_baseline.clear();
 }
 
+void OnBaselineAckFailed(int slot, const uint32_t *baselines_sent)
+{
+	SlotState &s = s_slots[slot];
+	ForEachSetBit(baselines_sent, [&](int entity) { s.baseline_unknown.set(entity); });
+}
+
 } // namespace safeproxy

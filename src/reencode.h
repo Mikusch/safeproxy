@@ -41,6 +41,8 @@ void OnBaselineUpdateSent(int slot, int tick, const uint32_t *baselines_sent);
 
 void OnBaselineAccepted(int slot, int tick, const uint32_t *baselines_sent);
 
+void OnBaselineAckFailed(int slot, const uint32_t *baselines_sent);
+
 } // namespace safeproxy
 
 #endif // _INCLUDE_SAFEPROXY_REENCODE_H_

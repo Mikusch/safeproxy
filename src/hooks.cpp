@@ -48,16 +48,20 @@ bool Hook_ProcessBaselineAck(CLC_BaselineAck *msg)
 	RETURN_META_VALUE(MRES_IGNORED, true);
 }
 
-// Only an accepted ack clears m_nBaselineUpdateTick inside the call.
 bool Hook_ProcessBaselineAck_Post(CLC_BaselineAck *msg)
 {
+	if (s_ackedUpdateTick < 0)
+		RETURN_META_VALUE(MRES_IGNORED, true);
+
 	uint8_t *base = BaseClientOf(META_IFACEPTR(IClientMessageHandler));
-	if (s_ackedUpdateTick >= 0 && BaselineUpdateTick(base) < 0)
-	{
-		IClient *iclient = reinterpret_cast<IClient *>(base + kBaseClientIClientOffset);
-		const uint32_t *baselines_sent = reinterpret_cast<const uint32_t *>(base + g_Offsets.CBaseClient_m_BaselinesSent);
+	IClient *iclient = reinterpret_cast<IClient *>(base + kBaseClientIClientOffset);
+	const uint32_t *baselines_sent = reinterpret_cast<const uint32_t *>(base + g_Offsets.CBaseClient_m_BaselinesSent);
+	// Only an accepted ack clears m_nBaselineUpdateTick inside the call.
+	if (BaselineUpdateTick(base) < 0)
 		OnBaselineAccepted(iclient->GetPlayerSlot(), s_ackedUpdateTick, baselines_sent);
-	}
+	// A failed ack can leave part of the update in the engine's baseline.
+	else if (!META_RESULT_ORIG_RET(bool))
+		OnBaselineAckFailed(iclient->GetPlayerSlot(), baselines_sent);
 	RETURN_META_VALUE(MRES_IGNORED, true);
 }
 
