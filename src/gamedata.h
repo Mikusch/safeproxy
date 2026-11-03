@@ -28,9 +28,6 @@ struct GamedataOffsets
 	int CBaseClient_IClientOffset = -1;
 
 	int CFrameSnapshot_nTickCount = -1;
-	int CFrameSnapshot_pEntities = -1;
-	int CFrameSnapshotEntry_Size = -1;
-	int CFrameSnapshotEntry_pPackedData = -1;
 
 	int PackedEntity_Size = -1;
 	int PackedEntity_pData = -1;

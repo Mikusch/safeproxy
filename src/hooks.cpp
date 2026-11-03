@@ -69,6 +69,13 @@ DETOUR_DECL_MEMBER4(Detour_WriteDeltaEntities, void, CBaseClient *, client, CCli
 
 } // anonymous namespace
 
+PackedEntity *EngineGetPackedEntity(CFrameSnapshot *snapshot, int entity)
+{
+	// The engine's GetPackedEntity never reads its this pointer.
+	static Detour_GetPackedEntityClass manager;
+	return (manager.*Detour_GetPackedEntityClass::Detour_GetPackedEntity_Actual)(snapshot, entity);
+}
+
 bool InstallHooks(char *error, size_t maxlen)
 {
 	s_SVComputeClientPacks_detour = DETOUR_CREATE_STATIC(Detour_SV_ComputeClientPacks, g_Offsets.SV_ComputeClientPacks);
