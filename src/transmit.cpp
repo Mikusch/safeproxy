@@ -199,8 +199,8 @@ bool IsTransmittedTo(int slot, int entity_index)
 
 void ForgetTransmitInfo(int slot)
 {
-	// A client disconnected by a prop callback still gets this snapshot from its freed frame. The engine skips a client without a frame.
-	if (s_transmitInfo[slot] && IsEvaluatingHooks())
+	// A client disconnected by a prop callback or send proxy still gets this snapshot from its freed frame. The engine skips a client without a frame.
+	if (s_transmitInfo[slot] && (IsEvaluatingHooks() || IsEncoding()))
 		DropCurrentFrame(s_transmitInfo[slot]);
 	s_transmitInfo[slot] = nullptr;
 }
