@@ -131,9 +131,6 @@ DETOUR_DECL_MEMBER4(Detour_WriteDeltaEntities, void, CBaseClient *, client, CCli
 	const uint32_t *baselines_sent = reinterpret_cast<const uint32_t *>(base + g_Offsets.CBaseClient_m_BaselinesSent);
 	const int pending_before = baseline_update_tick;
 
-	if (slot >= 0)
-		SettleBaselineUpdate(slot, pending_before);
-
 	PreWriteDelta(slot, baseline);
 	DETOUR_MEMBER_CALL(Detour_WriteDeltaEntities)(client, to, from, pBuf);
 	PreWriteDelta(-1, nullptr);

@@ -937,15 +937,4 @@ void OnBaselineAccepted(int slot, int tick, const uint32_t *baselines_sent)
 	s.pending_baseline.clear();
 }
 
-// An update that ended without OnBaselineAccepted was lost or freed.
-void SettleBaselineUpdate(int slot, int update_tick)
-{
-	SlotState &s = s_slots[slot];
-	if (s.pending_baseline_tick < 0 || update_tick == s.pending_baseline_tick)
-		return;
-
-	s.pending_baseline_tick = -1;
-	s.pending_baseline.clear();
-}
-
 } // namespace safeproxy
