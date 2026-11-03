@@ -798,7 +798,7 @@ void PostComputePacks(int clientCount, CGameClient **clients, CFrameSnapshot *sn
 	for (int i = 0; i < clientCount; ++i)
 	{
 		// CGameClient's first base is CBaseClient.
-		IClient *iclient = reinterpret_cast<IClient *>(reinterpret_cast<uintptr_t>(clients[i]) + g_Offsets.CBaseClient_IClientOffset);
+		IClient *iclient = reinterpret_cast<IClient *>(reinterpret_cast<uintptr_t>(clients[i]) + kBaseClientIClientOffset);
 		int slot = iclient->GetPlayerSlot();
 		if (iclient->IsFakeClient())
 		{

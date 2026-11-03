@@ -55,13 +55,6 @@
 				"windows"	"22"
 				"windows64"	"22"
 			}
-			"CBaseClient::IClientOffset"
-			{
-				"linux"		"4"
-				"linux64"	"8"
-				"windows"	"4"
-				"windows64"	"8"
-			}
 			"CFrameSnapshot::m_nTickCount"
 			{
 				"linux"		"4"

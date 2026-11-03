@@ -46,7 +46,7 @@ DETOUR_DECL_MEMBER4(Detour_WriteDeltaEntities, void, CBaseClient *, client, CCli
 	}
 
 	uint8_t *base = reinterpret_cast<uint8_t *>(client);
-	IClient *iclient = reinterpret_cast<IClient *>(base + g_Offsets.CBaseClient_IClientOffset);
+	IClient *iclient = reinterpret_cast<IClient *>(base + kBaseClientIClientOffset);
 	// SourceTV and Replay demo writers call this with their bot. Demos keep the real state.
 	int slot = iclient->IsFakeClient() ? -1 : iclient->GetPlayerSlot();
 
