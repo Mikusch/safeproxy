@@ -3,6 +3,9 @@
 
 #include "smsdk_ext.h"
 
+#include <iclient.h>
+#include <igameevents.h>
+
 class SendTable;
 class CSendProxyRecipients;
 template <class T, class I> class CUtlMemory;
@@ -40,9 +43,9 @@ struct GamedataOffsets
 
 extern const GamedataOffsets &g_Offsets;
 
-// CBaseClient's bases, IGameEventListener2, IClient and IClientMessageHandler, are one vtable pointer each.
-constexpr size_t kBaseClientIClientOffset = sizeof(void *);
-constexpr size_t kBaseClientMessageHandlerOffset = 2 * sizeof(void *);
+// CGameClient starts with CBaseClient, whose bases are IGameEventListener2, IClient and IClientMessageHandler, in that order.
+constexpr size_t kBaseClientIClientOffset = sizeof(IGameEventListener2);
+constexpr size_t kBaseClientMessageHandlerOffset = kBaseClientIClientOffset + sizeof(IClient);
 
 bool LoadGameData(char *error, size_t maxlen);
 

@@ -87,7 +87,6 @@ void InstallBaselineAckHook(CGameClient *client)
 {
 	s_BaselineAckHookTried = true;
 
-	// CGameClient's first base is CBaseClient.
 	IClientMessageHandler *handler = reinterpret_cast<IClientMessageHandler *>(reinterpret_cast<uint8_t *>(client) + kBaseClientMessageHandlerOffset);
 	s_BaselineAckHookID = SH_ADD_VPHOOK(IClientMessageHandler, ProcessBaselineAck, handler, SH_STATIC(Hook_ProcessBaselineAck), false);
 	s_BaselineAckPostHookID = SH_ADD_VPHOOK(IClientMessageHandler, ProcessBaselineAck, handler, SH_STATIC(Hook_ProcessBaselineAck_Post), true);
