@@ -15,6 +15,8 @@ bool InstallHooks(char *error, size_t maxlen);
 
 void UnloadHooks();
 
+bool HookBaselineAck(char *error, size_t maxlen);
+
 // CFrameSnapshotManager::GetPackedEntity without the redirect.
 PackedEntity *EngineGetPackedEntity(CFrameSnapshot *snapshot, int entity);
 

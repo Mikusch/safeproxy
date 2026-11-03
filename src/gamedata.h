@@ -25,8 +25,6 @@ struct GamedataOffsets
 
 	int CBaseEntity_SetTransmit = -1;
 
-	int CFrameSnapshot_nTickCount = -1;
-
 	int PackedEntity_Size = -1;
 	int PackedEntity_pData = -1;
 	int PackedEntity_nBits = -1;
@@ -44,6 +42,7 @@ extern const GamedataOffsets &g_Offsets;
 
 // CBaseClient's bases, IGameEventListener2, IClient and IClientMessageHandler, are one vtable pointer each.
 constexpr size_t kBaseClientIClientOffset = sizeof(void *);
+constexpr size_t kBaseClientMessageHandlerOffset = 2 * sizeof(void *);
 
 bool LoadGameData(char *error, size_t maxlen);
 

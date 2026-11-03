@@ -918,23 +918,31 @@ void OnBaselineUpdateSent(int slot, int tick, const uint32_t *baselines_sent)
 	});
 }
 
-void SettleBaselineUpdate(int slot, int update_tick, const void *baseline, const uint32_t *baselines_sent)
+void OnBaselineAccepted(int slot, int tick, const uint32_t *baselines_sent)
+{
+	SlotState &s = s_slots[slot];
+	// An update sent before the load stays unknown.
+	if (tick != s.pending_baseline_tick)
+		return;
+
+	ForEachSetBit(baselines_sent, [&](int entity) {
+		if (auto it = s.pending_baseline.find(entity); it != s.pending_baseline.end())
+			s.baseline[entity] = it->second;
+		else
+			s.baseline.erase(entity);
+		s.baseline_unknown.reset(entity);
+	});
+
+	s.pending_baseline_tick = -1;
+	s.pending_baseline.clear();
+}
+
+// An update that ended without OnBaselineAccepted was lost or freed.
+void SettleBaselineUpdate(int slot, int update_tick)
 {
 	SlotState &s = s_slots[slot];
 	if (s.pending_baseline_tick < 0 || update_tick == s.pending_baseline_tick)
 		return;
-
-	// The update is over. ProcessBaselineAck stamps the baseline with its tick only if it accepted the ack.
-	if (baseline && ReadField<int>(baseline, g_Offsets.CFrameSnapshot_nTickCount) == s.pending_baseline_tick)
-	{
-		ForEachSetBit(baselines_sent, [&](int entity) {
-			if (auto it = s.pending_baseline.find(entity); it != s.pending_baseline.end())
-				s.baseline[entity] = it->second;
-			else
-				s.baseline.erase(entity);
-			s.baseline_unknown.reset(entity);
-		});
-	}
 
 	s.pending_baseline_tick = -1;
 	s.pending_baseline.clear();

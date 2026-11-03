@@ -55,13 +55,6 @@
 				"windows"	"22"
 				"windows64"	"22"
 			}
-			"CFrameSnapshot::m_nTickCount"
-			{
-				"linux"		"4"
-				"linux64"	"4"
-				"windows"	"4"
-				"windows64"	"4"
-			}
 			"PackedEntity::Size"
 			{
 				"linux"		"52"
@@ -125,20 +118,6 @@
 				"linux64"	"16"
 				"windows"	"12"
 				"windows64"	"16"
-			}
-		}
-	}
-
-	"tf"
-	{
-		"Offsets"
-		{
-			"CFrameSnapshot::m_nTickCount"
-			{
-				"linux"		"0"
-				"linux64"	"0"
-				"windows"	"0"
-				"windows64"	"0"
 			}
 		}
 	}

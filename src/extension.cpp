@@ -87,6 +87,13 @@ bool CSafeProxyExt::InterceptClientConnect(int client, char *error, size_t maxle
 	return true;
 }
 
+void CSafeProxyExt::OnClientConnected(int client)
+{
+	char error[255];
+	if (!safeproxy::HookBaselineAck(error, sizeof(error)))
+		g_pSM->LogError(myself, "%s", error);
+}
+
 void CSafeProxyExt::OnClientDisconnecting(int client)
 {
 	safeproxy::ClearReencodeSlot(client - 1);
