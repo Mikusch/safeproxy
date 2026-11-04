@@ -48,6 +48,13 @@
 
 		"Offsets"
 		{
+			"CBaseEntity::ShouldTransmit"
+			{
+				"linux"		"21"
+				"linux64"	"21"
+				"windows"	"20"
+				"windows64"	"20"
+			}
 			"CBaseEntity::SetTransmit"
 			{
 				"linux"		"23"

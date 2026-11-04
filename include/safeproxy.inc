@@ -476,6 +476,7 @@ native void SafeProxy_SetPropBitsCallback(int entity, const char[] prop, SafePro
  *
  * @note            A client's own states replace the all-clients ones, and Hide beats ForceWithChildren beats Force beats Normal across plugins.
  * @note            A player and its moveparent ancestors are never hidden from it, and a Hide on or above it doesn't reach its view model or weapons.
+ * @note            ForceWithChildren skips children the game reserves for other clients, like another player's view model, and everything parented to them.
  * @note            SourceTV and Replay ignore transmit states.
  * @note            Client-side effects that ignore dormancy stay visible on a hidden entity.
  */

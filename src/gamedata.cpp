@@ -35,6 +35,7 @@ bool ResolveGameData(IGameConfig *gameconf, char *error, size_t maxlen)
 
 	struct OffsetSpec { const char *key; int *out; };
 	OffsetSpec offsets[] = {
+		{ "CBaseEntity::ShouldTransmit",        &s_offsets.CBaseEntity_ShouldTransmit        },
 		{ "CBaseEntity::SetTransmit",           &s_offsets.CBaseEntity_SetTransmit           },
 		{ "PackedEntity::Size",                 &s_offsets.PackedEntity_Size                 },
 		{ "PackedEntity::m_pData",              &s_offsets.PackedEntity_pData                },
