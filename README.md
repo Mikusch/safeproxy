@@ -18,7 +18,7 @@ The extension runs on both 64-bit and 32-bit servers.
 
 ## Installation
 
-Download the release archive for your SourceMod version and operating system, and extract it into your game directory.
+Download the [latest release](https://github.com/Mikusch/safeproxy/releases/latest) archive for your SourceMod version and operating system, and extract it into your game directory.
 
 ## Examples
 
@@ -28,14 +28,15 @@ All examples assume you have included [`safeproxy.inc`](/include/safeproxy.inc).
 
 ### Overriding Values
 
-Overrides take the same values as `SetEntProp`, and `SAFEPROXY_ALL_CLIENTS` (the default) overrides a prop for all clients.
+Overrides take the same prop names and values as `SetEntProp` with `Prop_Send`, and apply to all clients unless given a recipient.
 `SafeProxy_SetPropReal` lets one client see the real value anyway.
+For game rules props, pass the game rules proxy entity (e.g. `tf_gamerules`).
+Overrides are removed with their entity, when their recipient disconnects, when their plugin unloads, and at map end.
 
-This example shows players only their own ping on the scoreboard. The player resource keeps everyone's ping in an array indexed by client:
+This example shows players only their own ping on the scoreboard.
+The player resource keeps everyone's ping in an array indexed by client:
 
 ```sourcepawn
-#include <sdktools>
-
 public void OnClientPutInServer(int client)
 {
 	int resource = GetPlayerResourceEntity();
@@ -49,14 +50,11 @@ public void OnClientPutInServer(int client)
 
 ### Overriding Single Bits
 
-`SafeProxy_SetPropBits` overrides just the masked bits, so the other bits keep their real values and stay free for other plugins to override.
-
-This example shows a bounty target's outline and marked-for-death skull only to its hunter, while the target's other conditions still show.
-Forcing the target sends it to the hunter even when the game wouldn't, so the outline shows across the map. `SafeProxyTransmit_ForceWithChildren` also sends its cosmetics:
+This example shows a bounty target's outline and marked-for-death skull only to its hunter.
+`SafeProxy_SetPropBits` overrides only the condition's bit, and leaves the target's other conditions to the game and other plugins.
+Forcing the target and its cosmetics with `SafeProxyTransmit_ForceWithChildren` keeps its outline visible to the hunter across the map:
 
 ```sourcepawn
-#include <tf2>
-
 void SetBountyTarget(int hunter, int target)
 {
 	int bit = 1 << view_as<int>(TFCond_MarkedForDeath);
@@ -76,18 +74,15 @@ void ClearBountyTarget(int hunter, int target)
 
 ### Computing Values with a Callback
 
-A callback supplies the value for each client whenever the entity is sent to them.
-Returning anything but `Plugin_Changed` leaves the override out, and the real value or other plugins' overrides apply.
-
 > [!TIP]
-> Callbacks run on every snapshot for each client the entity is sent to, so keep them cheap.
-> If a value only changes now and then, setting and unsetting a regular override when it changes, for example from a timer, costs far less.
+> Callbacks run on every snapshot for each client the entity is sent to.
+> For values that only change now and then, a regular override set from a timer or event costs far less.
 
-This example outlines teammates below half health for medics:
+Returning anything but `Plugin_Changed` sends what the client would get without the callback.
+
+This example outlines teammates below half health:
 
 ```sourcepawn
-#include <tf2_stocks>
-
 public void OnClientPutInServer(int client)
 {
 	SafeProxy_SetPropCallback(client, "m_bGlowEnabled", Callback_GlowEnabled);
@@ -95,10 +90,13 @@ public void OnClientPutInServer(int client)
 
 Action Callback_GlowEnabled(int player, const char[] prop, int &value, int client, int element)
 {
-	if (player == client || TF2_GetPlayerClass(client) != TFClass_Medic || GetClientTeam(client) != GetClientTeam(player))
+	if (player == client || !IsPlayerAlive(player) || GetClientTeam(client) != GetClientTeam(player))
 		return Plugin_Continue;
 
-	if (!IsPlayerAlive(player) || GetClientHealth(player) * 2 >= GetEntProp(player, Prop_Data, "m_iMaxHealth"))
+	int health = GetClientHealth(player);
+	int maxHealth = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, player);
+
+	if (health * 2 >= maxHealth)
 		return Plugin_Continue;
 
 	value = true;
@@ -109,13 +107,11 @@ Action Callback_GlowEnabled(int player, const char[] prop, int &value, int clien
 ### Hiding Entities
 
 Hiding an entity also hides everything parented to it, like a player's weapons and cosmetics.
-Transmit states don't affect sounds, so you can additionally filter them with `SafeProxy_IsHidden`.
+Transmit states don't affect sounds or temp entities, but you can filter them with `SafeProxy_IsHidden`.
 
-This example adds a `!hide` command that allows hiding other players:
+This example adds a `!hide` command that hides other players and filters their sounds:
 
 ```sourcepawn
-#include <sdktools>
-
 bool g_bHidePlayers[MAXPLAYERS + 1];
 
 public void OnPluginStart()
@@ -174,6 +170,20 @@ Action OnNormalSound(int clients[MAXPLAYERS], int &numClients, char sample[PLATF
 
 	numClients = count;
 	return Plugin_Changed;
+}
+```
+
+### Showing an Entity to One Client
+
+A client's own transmit state, even `SafeProxyTransmit_Normal`, replaces every plugin's all-clients states.
+Unlike `SDKHook_SetTransmit`, this also works on entities the game always sends, like particle systems:
+
+```sourcepawn
+void ShowOnlyTo(int entity, int client)
+{
+	SafeProxy_ClearTransmit(entity);
+	SafeProxy_SetTransmit(entity, SafeProxyTransmit_Hide);
+	SafeProxy_SetTransmit(entity, SafeProxyTransmit_Normal, client);
 }
 ```
 
