@@ -113,7 +113,7 @@ void Hook_CheckTransmit_Post(CCheckTransmitInfo *pInfo, const unsigned short *pE
 		s_transmitInfo[client - 1] = pInfo;
 
 	// Only SourceTV and Replay get m_pTransmitAlways. Demos keep the real state.
-	// TF2's CBaseObject::SetTransmit dereferences the recipient's entity.
+	// SetTransmit and ShouldTransmit overrides dereference the recipient's entity.
 	if (!g_TransmitStore.Empty() && !pInfo->m_pTransmitAlways && pInfo->m_pClientEnt->GetUnknown())
 		g_TransmitStore.ApplyToTransmitInfo(pInfo, client - 1, pEdictIndices, nEdicts);
 
@@ -176,6 +176,34 @@ void CallOriginalSetTransmit(CBaseEntity *entity, CCheckTransmitInfo *pInfo)
 	u.s.addr = original ? original : *vfnptr;
 	u.s.adjustor = 0;
 	(reinterpret_cast<SourceHook::EmptyClass *>(entity)->*u.mfp)(pInfo, true);
+}
+
+int CallShouldTransmit(CBaseEntity *entity, const CCheckTransmitInfo *pInfo)
+{
+	union
+	{
+		int (SourceHook::EmptyClass::*mfp)(const CCheckTransmitInfo *);
+		struct
+		{
+			void *addr;
+			intptr_t adjustor;
+		} s;
+	} u;
+	u.s.addr = (*reinterpret_cast<void ***>(entity))[g_Offsets.CBaseEntity_ShouldTransmit];
+	u.s.adjustor = 0;
+	return (reinterpret_cast<SourceHook::EmptyClass *>(entity)->*u.mfp)(pInfo);
+}
+
+// Like CheckTransmit, only asks ShouldTransmit of FL_EDICT_FULLCHECK entities, such as view models.
+bool RefusedByGame(int entity_index, const CCheckTransmitInfo *pInfo)
+{
+	if (pInfo->m_pTransmitEdict->Get(entity_index))
+		return false;
+	IServerUnknown *unk = LiveUnknown(entity_index);
+	if (!unk)
+		return false;
+	const int flags = gamehelpers->EdictOfIndex(entity_index)->m_fStateFlags & (FL_EDICT_DONTSEND | FL_EDICT_ALWAYS | FL_EDICT_PVSCHECK | FL_EDICT_FULLCHECK);
+	return flags == FL_EDICT_FULLCHECK && !(CallShouldTransmit(unk->GetBaseEntity(), pInfo) & (FL_EDICT_ALWAYS | FL_EDICT_PVSCHECK));
 }
 
 } // anonymous namespace
@@ -323,7 +351,7 @@ void TransmitStore::ApplyToTransmitInfo(CCheckTransmitInfo *pInfo, int slot, con
 	// Hides never reach or pass through the recipient's own player. A dormant local player or view model breaks prediction.
 	const int self = slot + 1;
 
-	std::bitset<MAX_EDICTS> hidden, forces_children, has_entry;
+	std::bitset<MAX_EDICTS> hidden, forces, forces_children, has_entry;
 	// CheckTransmit only runs on the main thread.
 	static std::vector<int> forced;
 	forced.clear();
@@ -342,26 +370,40 @@ void TransmitStore::ApplyToTransmitInfo(CCheckTransmitInfo *pInfo, int slot, con
 		else if (state >= TransmitState::Force)
 		{
 			forced.push_back(entity_index);
+			forces.set(entity_index);
 			forces_children[entity_index] = state == TransmitState::ForceWithChildren;
 		}
 	}
 
 	if (forces_children.any())
 	{
+		std::array<int8_t, MAX_EDICTS> refused;
+		refused.fill(-1);
+		auto is_refused = [&](int entity_index) {
+			int8_t &known = refused[entity_index];
+			if (known < 0)
+				known = RefusedByGame(entity_index, pInfo);
+			return known > 0;
+		};
+
 		for (int i = 0; i < edict_count; ++i)
 		{
 			int entity_index = edicts[i];
 			if (has_entry.test(entity_index))
 				continue;
 
-			for (int parent = GetMoveParentIndexCached(entity_index); parent > 0; parent = GetMoveParentIndexCached(parent))
-			{
-				if (forces_children.test(parent))
-				{
-					forced.push_back(entity_index);
-					break;
-				}
-			}
+			int root = GetMoveParentIndexCached(entity_index);
+			while (root > 0 && !forces_children.test(root))
+				root = GetMoveParentIndexCached(root);
+			if (root <= 0)
+				continue;
+
+			// Forcing anything under a refused entity would also send that entity, as a moveparent.
+			bool blocked = false;
+			for (int e = entity_index; e != root && !blocked; e = GetMoveParentIndexCached(e))
+				blocked = !forces.test(e) && is_refused(e);
+			if (!blocked)
+				forced.push_back(entity_index);
 		}
 	}
 
