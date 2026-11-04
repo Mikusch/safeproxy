@@ -68,8 +68,6 @@ void CSafeProxyExt::OnCoreMapEnd()
 #if defined SMEXT_CONF_METAMOD
 bool CSafeProxyExt::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen, bool late)
 {
-	g_pServer = engine->GetIServer();
-
 	GET_V_IFACE_CURRENT(GetServerFactory, g_pServerGameEnts, IServerGameEnts, INTERFACEVERSION_SERVERGAMEENTS);
 	GET_V_IFACE_CURRENT(GetServerFactory, g_pServerGameClients, IServerGameClients, INTERFACEVERSION_SERVERGAMECLIENTS);
 	GET_V_IFACE_CURRENT(GetEngineFactory, g_pCVar, ICvar, CVAR_INTERFACE_VERSION);

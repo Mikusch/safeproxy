@@ -102,6 +102,10 @@ void InstallBaselineAckHook(CGameClient *client)
 
 DETOUR_DECL_STATIC3(Detour_SV_ComputeClientPacks, void, int, clientCount, CGameClient **, clients, CFrameSnapshot *, snapshot)
 {
+	// L4D2 has no IVEngineServer::GetIServer, and every client passed here belongs to the game server.
+	if (!g_pServer && clientCount > 0)
+		g_pServer = reinterpret_cast<IClient *>(reinterpret_cast<uint8_t *>(clients[0]) + kBaseClientIClientOffset)->GetServer();
+
 	// Packing runs before this frame's sends, so the hook is in place before any baseline update.
 	if (!s_BaselineAckHookTried && clientCount > 0)
 		InstallBaselineAckHook(clients[0]);
