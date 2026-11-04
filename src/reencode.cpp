@@ -541,11 +541,15 @@ void FinishSlotFrame(SlotState &s, int tick)
 
 std::vector<SavedProp> s_saved;
 
-bool EncodeWithOverrides(void *ent_base, ServerClass *sc, int entity_index, const EntityOverrides &ent_ov, int slot, const void *engine_data, int engine_bits, PayloadPtr &out)
+bool EncodeWithOverrides(ServerClass *sc, int entity_index, const EntityOverrides &ent_ov, int slot, const void *engine_data, int engine_bits, PayloadPtr &out)
 {
 	constexpr size_t kScratchWords = PAD_NUMBER(MAX_PACKEDENTITY_DATA, sizeof(uint32_t)) / sizeof(uint32_t);
 	static uint32_t scratch_storage[kScratchWords];
 	static std::vector<int> overridden;
+
+	void *ent_base = LiveUnknown(entity_index);
+	if (!ent_base)
+		return false;
 
 	ScopedStringProxies str_proxies;
 	ApplyOverridesToEntityMemory(ent_base, entity_index, ent_ov, slot, s_saved, str_proxies);
@@ -553,6 +557,13 @@ bool EncodeWithOverrides(void *ent_base, ServerClass *sc, int entity_index, cons
 	bf_write buf("SafeProxy", reinterpret_cast<char *>(scratch_storage), static_cast<int>(sizeof(scratch_storage)));
 
 	bool ok = g_Offsets.SendTable_Encode(sc->m_pTable, ent_base, &buf, entity_index, nullptr, false);
+
+	// Disconnecting a player from one of its send proxies deletes it.
+	if (LiveUnknown(entity_index) != ent_base)
+	{
+		s_saved.clear();
+		return false;
+	}
 
 	// Restore in reverse so overlapping saves unwind to the original bytes.
 	for (auto it = s_saved.rbegin(); it != s_saved.rend(); ++it)
@@ -615,7 +626,6 @@ void EncodeOverrides(CFrameSnapshot *snapshot, const std::bitset<SM_MAXPLAYERS> 
 		ServerClass *sc = ResolveServerClass(entity_index);
 		if (!sc)
 			continue;
-		void *ent_base = LiveUnknown(entity_index);
 
 		const auto slot_mask = ent_ov.has_all_clients_layers ? receiving : ent_ov.per_client_slots & receiving;
 
@@ -683,7 +693,7 @@ void EncodeOverrides(CFrameSnapshot *snapshot, const std::bitset<SM_MAXPLAYERS> 
 			}
 			else
 			{
-				if (!EncodeWithOverrides(ent_base, sc, entity_index, ent_ov, g.representative, engine_data, engine_bits, payload))
+				if (!EncodeWithOverrides(sc, entity_index, ent_ov, g.representative, engine_data, engine_bits, payload))
 					continue;
 				if (auto cached = MakeCachedEncode(g.hash, ent_ov, g.representative, payload, tick))
 					fresh.push_back(std::move(*cached));

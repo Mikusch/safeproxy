@@ -4,10 +4,12 @@
 #include "smsdk_ext.h"
 
 class IServer;
+class IServerGameClients;
 class CFrameSnapshot;
 class PackedEntity;
 
 extern IServer *g_pServer;
+extern IServerGameClients *g_pServerGameClients;
 
 namespace safeproxy {
 

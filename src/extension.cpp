@@ -71,6 +71,7 @@ bool CSafeProxyExt::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen,
 	g_pServer = engine->GetIServer();
 
 	GET_V_IFACE_CURRENT(GetServerFactory, g_pServerGameEnts, IServerGameEnts, INTERFACEVERSION_SERVERGAMEENTS);
+	GET_V_IFACE_CURRENT(GetServerFactory, g_pServerGameClients, IServerGameClients, INTERFACEVERSION_SERVERGAMECLIENTS);
 	GET_V_IFACE_CURRENT(GetEngineFactory, g_pCVar, ICvar, CVAR_INTERFACE_VERSION);
 
 	gpGlobals = ismm->GetCGlobals();
@@ -84,6 +85,8 @@ bool CSafeProxyExt::InterceptClientConnect(int client, char *error, size_t maxle
 {
 	safeproxy::g_OverrideStore.OnClientDisconnected(client);
 	safeproxy::g_TransmitStore.OnClientDisconnected(client);
+	// The encode a client was disconnected in can still write to its slot.
+	safeproxy::ClearReencodeSlot(client - 1);
 	return true;
 }
 
