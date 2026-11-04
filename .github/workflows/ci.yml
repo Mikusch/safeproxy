@@ -21,16 +21,20 @@ jobs:
             container: ghcr.io/alliedmodders/build-containers/debian11-clang22:latest
             target: x86
             platform: linux32
+            sdks: tf2,css,dods,hl2dm,l4d2
           - os: ubuntu-latest
             container: ghcr.io/alliedmodders/build-containers/debian11-clang22:latest
             target: x86_64
             platform: linux64
+            sdks: tf2,css,dods,hl2dm
           - os: windows-latest
             target: x86
             platform: win32
+            sdks: tf2,css,dods,hl2dm,l4d2
           - os: windows-latest
             target: x86_64
             platform: win64
+            sdks: tf2,css,dods,hl2dm
 
     name: Build (${{ matrix.sm.label }}-${{ matrix.build.platform }})
     runs-on: ${{ matrix.build.os }}
@@ -46,7 +50,7 @@ jobs:
       - name: Checkout hl2sdks
         shell: bash
         run: |
-          for sdk in tf2 css dods hl2dm; do
+          for sdk in $(echo ${{ matrix.build.sdks }} | tr ',' ' '); do
             git clone --depth 1 --branch $sdk https://github.com/alliedmodders/hl2sdk cache/hl2sdk-$sdk
           done
 
@@ -85,7 +89,7 @@ jobs:
           git config --global --add safe.directory "$(pwd)"
           mkdir -p build && cd build
           python3 ../configure.py \
-            --sdk=tf2,css,dods,hl2dm \
+            --sdk=${{ matrix.build.sdks }} \
             --mms-path="../cache/metamod-source" \
             --sm-path="../cache/sourcemod" \
             --sdk-root="../cache" \
