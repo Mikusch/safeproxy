@@ -26,6 +26,7 @@ struct GamedataOffsets
 	void *CFrameSnapshotManager_GetPackedEntity = nullptr;
 	void *CBaseServer_WriteDeltaEntities = nullptr;
 
+	int CBaseEntity_ShouldTransmit = -1;
 	int CBaseEntity_SetTransmit = -1;
 
 	int PackedEntity_Size = -1;

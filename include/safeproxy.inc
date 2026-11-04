@@ -474,10 +474,10 @@ native void SafeProxy_SetPropBitsCallback(int entity, const char[] prop, SafePro
  * @param recipient Client index or SAFEPROXY_ALL_CLIENTS.
  * @error           Invalid, non-networked or world entity, invalid or disconnected recipient, invalid state, or SafeProxyTransmit_Normal for SAFEPROXY_ALL_CLIENTS.
  *
- * @note            A client's own states replace the all-clients ones, and Hide beats ForceWithChildren beats Force beats Normal across plugins.
- * @note            A player and its moveparent ancestors are never hidden from it, and a Hide on or above it doesn't reach its view model or weapons.
+ * @note            Hide beats ForceWithChildren beats Force beats Normal across plugins.
+ * @note            A Hide on or above a player doesn't hide it, its moveparent ancestors or anything parented to it from that player.
+ * @note            ForceWithChildren skips children the game reserves for other clients, like another player's view model, and everything parented to them.
  * @note            SourceTV and Replay ignore transmit states.
- * @note            Client-side effects that ignore dormancy stay visible on a hidden entity.
  */
 native void SafeProxy_SetTransmit(int entity, SafeProxyTransmit state, int recipient = SAFEPROXY_ALL_CLIENTS);
 
