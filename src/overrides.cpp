@@ -332,7 +332,7 @@ std::optional<PropClassification> ClassifyProp(SendProp *prop)
 	if (auto it = s_probeProps.find(prop); it != s_probeProps.end())
 		return it->second;
 
-	// A string prop's own proxy doesn't matter, the re-encode swaps it.
+	// A string prop's own proxy doesn't matter, the re-encode patches its output.
 	if (prop->GetType() == DPT_String)
 		return PropClassification{PropType::String, 0};
 
@@ -371,11 +371,11 @@ const void *ModuleOf(SendVarProxyFn fn)
 #endif
 }
 
+const void *s_gameModule;
+
 // Only proxies from the game's module vote. Another extension may hook many props with one shared proxy.
 ProbeResult ProbeProxy(const std::vector<ProxyProbe> &probes, SendPropType type, const char *what)
 {
-	const void *game_module = ModuleOf(g_pStdProxies->m_Int32ToInt32);
-
 	ProbeResult result;
 	std::vector<SendVarProxyFn> fns;
 	for (const ProxyProbe &probe : probes)
@@ -390,7 +390,7 @@ ProbeResult ProbeProxy(const std::vector<ProxyProbe> &probes, SendPropType type,
 			continue;
 		}
 		result.props.push_back(lookup.prop);
-		if (SendVarProxyFn fn = lookup.prop->GetProxyFn(); fn && !s_stdProxies.contains(fn) && game_module && ModuleOf(fn) == game_module)
+		if (SendVarProxyFn fn = lookup.prop->GetProxyFn(); !s_stdProxies.contains(fn) && IsGameProxy(fn))
 			fns.push_back(fn);
 	}
 
@@ -410,6 +410,7 @@ ProbeResult ProbeProxy(const std::vector<ProxyProbe> &probes, SendPropType type,
 
 void AutoDetectTransformingProxies()
 {
+	s_gameModule = ModuleOf(g_pStdProxies->m_Int32ToInt32);
 	BuildStdProxyMap();
 	BuildStaticOffsetProxySet();
 	s_lookupCache.clear();
@@ -553,6 +554,11 @@ void AutoDetectTransformingProxies()
 		if (probed.fn)
 			s_probedProxies.try_emplace(probed.fn, TypedProxy{spec.type, spec.classification});
 	}
+}
+
+bool IsGameProxy(SendVarProxyFn fn)
+{
+	return fn && s_gameModule && ModuleOf(fn) == s_gameModule;
 }
 
 namespace {

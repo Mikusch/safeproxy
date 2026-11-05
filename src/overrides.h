@@ -25,6 +25,8 @@ namespace safeproxy {
 
 void AutoDetectTransformingProxies();
 
+bool IsGameProxy(SendVarProxyFn fn);
+
 ServerClass *ResolveServerClass(int entity_index);
 
 enum class PropType : uint8_t
