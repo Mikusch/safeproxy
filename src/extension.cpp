@@ -51,6 +51,7 @@ void CSafeProxyExt::SDK_OnUnload()
 
 	safeproxy::UnloadTransmitHook();
 	safeproxy::UnloadHooks();
+	safeproxy::RestoreSwappedProxies();
 }
 
 void CSafeProxyExt::SDK_OnAllLoaded()

@@ -15,6 +15,8 @@ void ClearReencodeState();
 
 void ClearReencodeSlot(int slot);
 
+void RestoreSwappedProxies();
+
 // Clients connected before the load can hold any baseline, including an earlier load's payloads.
 void AssumeUnknownBaselines();
 

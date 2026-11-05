@@ -271,55 +271,83 @@ std::optional<CachedEncode> MakeCachedEncode(size_t hash, const EntityOverrides 
 	return cached;
 }
 
-// Strings swap the proxy, a longer value could overflow a char[] field of unknown size.
-struct StringOverride
+// A longer string could overflow a char[] field of unknown size, and a watched field has to keep its real value.
+struct ProxyPatch
 {
-	SendProp *prop;
-	int element;
-	const char *value;
-	SendVarProxyFn original;
+	const SendProp *prop;
+	const void *field;
+	EffectiveOverride eff;
 };
 
-const std::vector<StringOverride> *s_stringOverrides = nullptr;
-
-void SafeProxyStringProxy(const SendProp *pProp, const void *pStructBase, const void *pData, DVariant *pOut, int iElement, int objectID)
+struct ProxySwap
 {
-	SendVarProxyFn original = nullptr;
-	for (const StringOverride &s : *s_stringOverrides)
+	SendProp *prop;
+	SendVarProxyFn replaced;
+	bool forwarding;
+};
+
+std::vector<ProxySwap> s_swaps;
+std::vector<ProxyPatch> s_patches;
+
+// An extension that hooks a prop mid-encode saves our proxy as its original, and can call it later, even from the packing threads.
+// Those calls end in the prop's game proxy, which calls no other proxy and outlives every extension.
+std::unordered_map<const SendProp *, SendVarProxyFn> s_fallbacks;
+
+void SafeProxyPatchProxy(const SendProp *pProp, const void *pStructBase, const void *pData, DVariant *pOut, int iElement, int objectID)
+{
+	auto swap = std::find_if(s_swaps.begin(), s_swaps.end(), [&](const ProxySwap &s) { return s.prop == pProp; });
+	if (swap == s_swaps.end() || swap->forwarding)
 	{
-		if (s.prop != pProp)
-			continue;
-		original = s.original;
-		if (s.element < 0 || s.element == iElement)
-		{
-			pOut->m_pString = const_cast<char *>(s.value);
-			return;
-		}
+		if (SendVarProxyFn fallback = s_fallbacks.find(pProp)->second)
+			fallback(pProp, pStructBase, pData, pOut, iElement, objectID);
+		else
+			pOut->m_pString = const_cast<char *>("");
+		return;
 	}
-	original(pProp, pStructBase, pData, pOut, iElement, objectID);
+
+	swap->forwarding = true;
+	swap->replaced(pProp, pStructBase, pData, pOut, iElement, objectID);
+	swap->forwarding = false;
+	for (const ProxyPatch &patch : s_patches)
+	{
+		if (patch.prop != pProp || patch.field != pData)
+			continue;
+		if (patch.eff.value)
+			pOut->m_pString = const_cast<char *>(patch.eff.value->StringPtr());
+		else
+			pOut->m_Int = static_cast<int>((static_cast<uint32_t>(pOut->m_Int) & ~patch.eff.mask) | patch.eff.bits);
+	}
 }
 
-struct ScopedStringProxies
+struct ScopedProxySwaps
 {
-	std::vector<StringOverride> overrides;
-
-	ScopedStringProxies() { s_stringOverrides = &overrides; }
-
-	void Add(const PropInfo &info, const char *value)
+	void Patch(SendProp *prop, const void *field, const EffectiveOverride &eff)
 	{
-		// Swapping twice would save SafeProxyStringProxy as the original.
-		auto swapped = std::find_if(overrides.begin(), overrides.end(), [&](const StringOverride &s) { return s.prop == info.prop; });
-		SendVarProxyFn original = swapped != overrides.end() ? swapped->original : info.prop->GetProxyFn();
-		if (swapped == overrides.end())
-			info.prop->SetProxyFn(&SafeProxyStringProxy);
-		overrides.push_back({info.prop, info.array_element, value, original});
+		if (std::none_of(s_swaps.begin(), s_swaps.end(), [&](const ProxySwap &s) { return s.prop == prop; }))
+		{
+			SendVarProxyFn live = prop->GetProxyFn();
+			SendVarProxyFn &fallback = s_fallbacks[prop];
+			if (prop->GetType() != DPT_String)
+				fallback = g_pStdProxies->m_UInt32ToInt32;
+			else if (!fallback && IsGameProxy(live))
+				fallback = live;
+			prop->SetProxyFn(&SafeProxyPatchProxy);
+			s_swaps.push_back({prop, live, false});
+		}
+		s_patches.push_back({prop, field, eff});
 	}
 
-	~ScopedStringProxies()
+	~ScopedProxySwaps()
 	{
-		s_stringOverrides = nullptr;
-		for (const StringOverride &s : overrides)
-			s.prop->SetProxyFn(s.original);
+		for (const ProxySwap &s : s_swaps)
+		{
+			if (s.prop->GetProxyFn() == &SafeProxyPatchProxy)
+				s.prop->SetProxyFn(s.replaced);
+			else
+				g_pSM->LogError(myself, "Another extension replaced the send proxy of %s during the re-encode", s.prop->GetName());
+		}
+		s_swaps.clear();
+		s_patches.clear();
 	}
 };
 
@@ -330,11 +358,13 @@ struct SavedProp
 	uint8_t bytes[sizeof(Vec3)]; // The largest stomped field is a Vector/QAngle.
 };
 
-void ApplyOverridesToEntityMemory(void *ent_base, int entity_index, const EntityOverrides &ent, int slot, std::vector<SavedProp> &out_saved, ScopedStringProxies &out_proxies)
+void ApplyOverridesToEntityMemory(void *ent_base, int entity_index, const EntityOverrides &ent, int slot, std::vector<SavedProp> &out_saved, ScopedProxySwaps &out_swaps)
 {
 	static std::vector<std::pair<const PropOverride *, EffectiveOverride>> stomps;
+	static std::vector<std::pair<const PropOverride *, EffectiveOverride>> patches;
 	out_saved.clear();
 	stomps.clear();
+	patches.clear();
 
 	for (const auto &[key, po] : ent.by_prop)
 	{
@@ -342,8 +372,8 @@ void ApplyOverridesToEntityMemory(void *ent_base, int entity_index, const Entity
 		if (!eff.Overrides())
 			continue;
 
-		if (eff.value && eff.value->IsString())
-			out_proxies.Add(po.info, eff.value->StringPtr());
+		if ((eff.value && eff.value->IsString()) || po.info.watched)
+			patches.emplace_back(&po, eff);
 		else
 			stomps.emplace_back(&po, eff);
 	}
@@ -372,6 +402,13 @@ void ApplyOverridesToEntityMemory(void *ent_base, int entity_index, const Entity
 			sent = (sent & ~eff.mask) | eff.bits;
 			memcpy(addr, &sent, saved.size);
 		}
+	}
+
+	// The encoder finds the fields after the stomps.
+	for (const auto &[po, eff] : patches)
+	{
+		if (const uint8_t *field = FieldAddress(ent_base, po->info, entity_index))
+			out_swaps.Patch(po->info.prop, field, eff);
 	}
 }
 
@@ -565,8 +602,8 @@ bool EncodeWithOverrides(ServerClass *sc, int entity_index, const EntityOverride
 	if (!ent_base)
 		return false;
 
-	ScopedStringProxies str_proxies;
-	ApplyOverridesToEntityMemory(ent_base, entity_index, ent_ov, slot, s_saved, str_proxies);
+	ScopedProxySwaps swaps;
+	ApplyOverridesToEntityMemory(ent_base, entity_index, ent_ov, slot, s_saved, swaps);
 
 	bf_write buf("SafeProxy", reinterpret_cast<char *>(scratch_storage), static_cast<int>(sizeof(scratch_storage)));
 
@@ -756,6 +793,20 @@ void ClearReencodeState()
 void ClearReencodeSlot(int slot)
 {
 	s_slots[slot] = SlotState{};
+}
+
+void RestoreSwappedProxies()
+{
+	for (const auto &[prop, fallback] : s_fallbacks)
+	{
+		if (prop->GetProxyFn() != &SafeProxyPatchProxy)
+			continue;
+		if (fallback)
+			const_cast<SendProp *>(prop)->SetProxyFn(fallback);
+		else
+			g_pSM->LogError(myself, "Could not restore the send proxy of %s, its game proxy is unknown", prop->GetName());
+	}
+	s_fallbacks.clear();
 }
 
 void AssumeUnknownBaselines()

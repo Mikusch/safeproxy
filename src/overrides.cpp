@@ -327,14 +327,19 @@ void BuildStdProxyMap()
 
 std::unordered_map<const SendProp *, PropClassification> s_probeProps;
 
+// TF2 Tools swaps in proxies that read these to fire TF2_OnConditionAdded/Removed.
+std::unordered_set<const SendProp *> s_watchedProps;
+
 std::optional<PropClassification> ClassifyProp(SendProp *prop)
 {
 	if (auto it = s_probeProps.find(prop); it != s_probeProps.end())
 		return it->second;
 
-	// A string prop's own proxy doesn't matter, the re-encode swaps it.
+	// These props' own proxies don't matter, the re-encode patches their output.
 	if (prop->GetType() == DPT_String)
 		return PropClassification{PropType::String, 0};
+	if (s_watchedProps.contains(prop))
+		return PropClassification{PropType::Int, sizeof(int32_t)};
 
 	SendVarProxyFn fn = prop->GetProxyFn();
 	if (!fn)
@@ -371,11 +376,11 @@ const void *ModuleOf(SendVarProxyFn fn)
 #endif
 }
 
+const void *s_gameModule;
+
 // Only proxies from the game's module vote. Another extension may hook many props with one shared proxy.
 ProbeResult ProbeProxy(const std::vector<ProxyProbe> &probes, SendPropType type, const char *what)
 {
-	const void *game_module = ModuleOf(g_pStdProxies->m_Int32ToInt32);
-
 	ProbeResult result;
 	std::vector<SendVarProxyFn> fns;
 	for (const ProxyProbe &probe : probes)
@@ -390,7 +395,7 @@ ProbeResult ProbeProxy(const std::vector<ProxyProbe> &probes, SendPropType type,
 			continue;
 		}
 		result.props.push_back(lookup.prop);
-		if (SendVarProxyFn fn = lookup.prop->GetProxyFn(); fn && !s_stdProxies.contains(fn) && game_module && ModuleOf(fn) == game_module)
+		if (SendVarProxyFn fn = lookup.prop->GetProxyFn(); !s_stdProxies.contains(fn) && IsGameProxy(fn))
 			fns.push_back(fn);
 	}
 
@@ -410,6 +415,7 @@ ProbeResult ProbeProxy(const std::vector<ProxyProbe> &probes, SendPropType type,
 
 void AutoDetectTransformingProxies()
 {
+	s_gameModule = ModuleOf(g_pStdProxies->m_Int32ToInt32);
 	BuildStdProxyMap();
 	BuildStaticOffsetProxySet();
 	s_lookupCache.clear();
@@ -553,6 +559,31 @@ void AutoDetectTransformingProxies()
 		if (probed.fn)
 			s_probedProxies.try_emplace(probed.fn, TypedProxy{spec.type, spec.classification});
 	}
+
+	// Output patching only replaces the game's plain copy.
+	s_watchedProps.clear();
+	if (ServerClass *sc = gamehelpers->FindServerClass("CTFPlayer"))
+	{
+		for (const char *name : {"m_nPlayerCond", "_condition_bits", "m_nPlayerCondEx", "m_nPlayerCondEx2", "m_nPlayerCondEx3", "m_nPlayerCondEx4"})
+		{
+			SendPropLookup lookup;
+			bool ok = LookupSendProp(sc, name, &lookup) == LookupResult::Found && lookup.prop->GetType() == DPT_Int;
+			if (ok)
+			{
+				SendVarProxyFn fn = lookup.prop->GetProxyFn();
+				ok = fn && (!IsGameProxy(fn) || fn == g_pStdProxies->m_Int32ToInt32 || fn == g_pStdProxies->m_UInt32ToInt32);
+			}
+			if (ok)
+				s_watchedProps.insert(lookup.prop);
+			else
+				g_pSM->LogError(myself, "Condition prop CTFPlayer.%s is missing or changed", name);
+		}
+	}
+}
+
+bool IsGameProxy(SendVarProxyFn fn)
+{
+	return fn && s_gameModule && ModuleOf(fn) == s_gameModule;
 }
 
 namespace {
@@ -684,6 +715,7 @@ bool ResolveProp(int entity_index, const char *prop_name, int element, std::opti
 	out->array_element = raw.prop->GetType() == DPT_Array ? element : -1;
 	out->relocations = at.relocations;
 	out->relocation_count = at.relocation_count;
+	out->watched = s_watchedProps.contains(prop);
 	return true;
 }
 
