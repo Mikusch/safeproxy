@@ -271,12 +271,12 @@ std::optional<CachedEncode> MakeCachedEncode(size_t hash, const EntityOverrides 
 	return cached;
 }
 
-// A longer string could overflow a char[] field of unknown size.
+// A longer string could overflow a char[] field of unknown size, and a watched field has to keep its real value.
 struct ProxyPatch
 {
 	const SendProp *prop;
 	const void *field;
-	const char *string;
+	EffectiveOverride eff;
 };
 
 struct ProxySwap
@@ -310,25 +310,31 @@ void SafeProxyPatchProxy(const SendProp *pProp, const void *pStructBase, const v
 	swap->forwarding = false;
 	for (const ProxyPatch &patch : s_patches)
 	{
-		if (patch.prop == pProp && patch.field == pData)
-			pOut->m_pString = const_cast<char *>(patch.string);
+		if (patch.prop != pProp || patch.field != pData)
+			continue;
+		if (patch.eff.value)
+			pOut->m_pString = const_cast<char *>(patch.eff.value->StringPtr());
+		else
+			pOut->m_Int = static_cast<int>((static_cast<uint32_t>(pOut->m_Int) & ~patch.eff.mask) | patch.eff.bits);
 	}
 }
 
 struct ScopedProxySwaps
 {
-	void Patch(SendProp *prop, const void *field, const char *string)
+	void Patch(SendProp *prop, const void *field, const EffectiveOverride &eff)
 	{
 		if (std::none_of(s_swaps.begin(), s_swaps.end(), [&](const ProxySwap &s) { return s.prop == prop; }))
 		{
 			SendVarProxyFn live = prop->GetProxyFn();
 			SendVarProxyFn &fallback = s_fallbacks[prop];
-			if (!fallback && IsGameProxy(live))
+			if (prop->GetType() != DPT_String)
+				fallback = g_pStdProxies->m_UInt32ToInt32;
+			else if (!fallback && IsGameProxy(live))
 				fallback = live;
 			prop->SetProxyFn(&SafeProxyPatchProxy);
 			s_swaps.push_back({prop, live, false});
 		}
-		s_patches.push_back({prop, field, string});
+		s_patches.push_back({prop, field, eff});
 	}
 
 	~ScopedProxySwaps()
@@ -366,7 +372,7 @@ void ApplyOverridesToEntityMemory(void *ent_base, int entity_index, const Entity
 		if (!eff.Overrides())
 			continue;
 
-		if (eff.value && eff.value->IsString())
+		if ((eff.value && eff.value->IsString()) || po.info.watched)
 			patches.emplace_back(&po, eff);
 		else
 			stomps.emplace_back(&po, eff);
@@ -402,7 +408,7 @@ void ApplyOverridesToEntityMemory(void *ent_base, int entity_index, const Entity
 	for (const auto &[po, eff] : patches)
 	{
 		if (const uint8_t *field = FieldAddress(ent_base, po->info, entity_index))
-			out_swaps.Patch(po->info.prop, field, eff.value->StringPtr());
+			out_swaps.Patch(po->info.prop, field, eff);
 	}
 }
 

@@ -72,6 +72,7 @@ struct PropInfo
 	int array_element = -1; // Only set for DPT_Array elements (they share one SendProp).
 	std::array<Relocation, kMaxRelocations> relocations{};
 	int relocation_count = 0;
+	bool watched = false;
 
 	bool Relocated() const { return relocation_count > 0; }
 };
