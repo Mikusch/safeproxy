@@ -239,7 +239,7 @@ void NoteTransmitted(int slot, int tick)
 {
 	if (const CCheckTransmitInfo *info = s_transmitInfo[slot])
 	{
-		info->m_pTransmitEdict->CopyTo(&s_sent[slot].bits);
+		memcpy(s_sent[slot].bits.Base(), info->m_pTransmitEdict->Base(), s_sent[slot].bits.GetNumDWords() * sizeof(uint32));
 		s_sent[slot].tick = tick;
 	}
 }
@@ -426,7 +426,7 @@ void TransmitStore::ApplyToTransmitInfo(CCheckTransmitInfo *pInfo, int slot, con
 	if (!forced.empty())
 	{
 		CBitVec<MAX_EDICTS> before;
-		pInfo->m_pTransmitEdict->CopyTo(&before);
+		memcpy(before.Base(), pInfo->m_pTransmitEdict->Base(), before.GetNumDWords() * sizeof(uint32));
 
 		bool walked = false;
 		for (int entity_index : forced)

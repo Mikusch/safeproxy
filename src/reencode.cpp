@@ -74,7 +74,12 @@ struct Payload
 using PayloadPtr = std::shared_ptr<const Payload>;
 
 // An empty baseline makes the engine send every prop, which decodes the same against whatever the client holds.
+#if SOURCE_ENGINE == SE_LEFT4DEAD2
+// A prop index scheme bit, then the end marker, index 0xFFF in 7 + 7 bits.
+const Payload kNoProps{{0x7FFE}};
+#else
 const Payload kNoProps{{0}};
+#endif
 
 struct EntityState
 {
@@ -287,7 +292,7 @@ void SafeProxyStringProxy(const SendProp *pProp, const void *pStructBase, const 
 		original = s.original;
 		if (s.element < 0 || s.element == iElement)
 		{
-			pOut->m_pString = s.value;
+			pOut->m_pString = const_cast<char *>(s.value);
 			return;
 		}
 	}
@@ -502,10 +507,19 @@ void Transition(EntityState &st, const ServerClass *sc, const PayloadPtr &payloa
 // The engine keeps up to max(MAX_CLIENT_FRAMES, sv_maxreplay / interval) frames per client.
 constexpr int kEngineMinClientFrames = 128;
 ConVar *s_maxReplay;
+// L4D2 also keeps sv_maxclientframes frames, and sv_extra_client_connect_time seconds of frames after a client enters the game.
+ConVar *s_maxClientFrames;
+ConVar *s_extraConnectTime;
 
 int MaxClientFrames()
 {
-	return std::max(kEngineMinClientFrames, static_cast<int>(s_maxReplay->GetFloat() / gpGlobals->interval_per_tick));
+	int frames = std::max(kEngineMinClientFrames, static_cast<int>(s_maxReplay->GetFloat() / gpGlobals->interval_per_tick));
+	if (s_maxClientFrames)
+		frames = std::max(frames, s_maxClientFrames->GetInt());
+	// Counted for every client, overcounting only resends more props.
+	if (s_extraConnectTime)
+		frames = std::max(frames, static_cast<int>(s_extraConnectTime->GetFloat() / gpGlobals->interval_per_tick));
+	return frames;
 }
 
 void NoteClientFrame(SlotState &s, int tick)
@@ -725,6 +739,8 @@ bool InitReencode(char *error, size_t maxlen)
 		snprintf(error, maxlen, "Could not find ConVar 'sv_maxreplay'");
 		return false;
 	}
+	s_maxClientFrames = g_pCVar->FindVar("sv_maxclientframes");
+	s_extraConnectTime = g_pCVar->FindVar("sv_extra_client_connect_time");
 	return true;
 }
 

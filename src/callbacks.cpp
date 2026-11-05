@@ -142,7 +142,7 @@ std::optional<PropValue> CallHook(const HookCall &call, const PropInfo &info, in
 	case PropType::EHandle:
 	{
 		CBaseHandle real;
-		memcpy(&real, field, sizeof(real));
+		memcpy(static_cast<void *>(&real), field, sizeof(real));
 		edict_t *target = gamehelpers->GetHandleEntity(real);
 		cell_t value = target ? gamehelpers->IndexOfEdict(target) : -1;
 		fn->PushCellByRef(&value);

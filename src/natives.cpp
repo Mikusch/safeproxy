@@ -308,7 +308,8 @@ cell_t Native_GetPropEnt(IPluginContext *pContext, const cell_t *params)
 		return 0;
 
 	uint32_t raw = std::get<uint32_t>(eff.value->v);
-	CBaseHandle handle(raw & ENT_ENTRY_MASK, raw >> NUM_SERIAL_NUM_SHIFT_BITS);
+	CBaseHandle handle;
+	memcpy(static_cast<void *>(&handle), &raw, sizeof(handle));
 	edict_t *target = gamehelpers->GetHandleEntity(handle);
 
 	cell_t *addr;

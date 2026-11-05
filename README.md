@@ -13,6 +13,7 @@ Supported Games:
 * Counter-Strike: Source
 * Half-Life 2 Deathmatch
 * Day of Defeat: Source
+* Left 4 Dead 2
 
 The extension runs on both 64-bit and 32-bit servers.
 
