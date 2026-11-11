@@ -2,6 +2,15 @@
 {
 	"#default"
 	{
+		"#supported"
+		{
+			"game"	"tf"
+			"game"	"cstrike"
+			"game"	"dod"
+			"game"	"hl2mp"
+			"game"	"left4dead2"
+		}
+
 		"Signatures"
 		{
 			"SendTable_Encode"
