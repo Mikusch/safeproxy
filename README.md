@@ -1,8 +1,8 @@
 # SafeProxy
 
-A SourceMod extension that allows overriding SendProp values and entity visibility per client, without changing the entities themselves.
+A SourceMod extension that allows overriding SendProp values and transmit state per client, without changing the entities themselves.
 
-It's designed as a safer and more performant alternative to [SendProxy Manager](https://forums.alliedmods.net/showthread.php?t=169795), hence the name.
+It is designed as a safer, modern, and more performant alternative to [SendProxy Manager](https://forums.alliedmods.net/showthread.php?t=169795), with added features.
 
 > [!NOTE]
 > You do **not** need to set `sv_parallel_packentities` or `sv_parallel_sendsnapshot` to `0` for this extension to work.
@@ -11,11 +11,11 @@ Supported Games:
 
 * Team Fortress 2
 * Counter-Strike: Source
-* Half-Life 2 Deathmatch
+* Half-Life 2: Deathmatch
 * Day of Defeat: Source
 * Left 4 Dead 2
 
-The extension runs on both 64-bit and 32-bit servers.
+The extension runs on both Linux and Windows, and supports both 64-bit and 32-bit servers.
 
 ## Installation
 
@@ -23,7 +23,7 @@ Download the [latest release](https://github.com/Mikusch/safeproxy/releases/late
 
 ## Examples
 
-The examples are written for Team Fortress 2, but the concepts apply to all supported games.
+These examples were written for Team Fortress 2, but the concepts apply to all supported games.
 
 All examples assume you have included [`safeproxy.inc`](/include/safeproxy.inc).
 
@@ -34,7 +34,7 @@ Overrides take the same prop names and values as `SetEntProp` with `Prop_Send`, 
 For game rules props, pass the game rules proxy entity (e.g. `tf_gamerules`).
 Overrides are removed with their entity, when their recipient disconnects, when their plugin unloads, and at map end.
 
-This example shows players only their own ping on the scoreboard.
+This example shows players only their own ping on the scoreboard, and hides everyone else's.
 The player resource keeps everyone's ping in an array indexed by client:
 
 ```sourcepawn
@@ -76,8 +76,8 @@ void ClearBountyTarget(int hunter, int target)
 ### Computing Values with a Callback
 
 > [!TIP]
-> Callbacks run on every snapshot for each client the entity is sent to.
-> For values that only change now and then, a regular override set from a timer or event costs far less.
+> Callbacks run on every snapshot for each client the entity is sent to, which can be expensive.
+> For values that only change now and then, a regular override set from a timer or event is preferred.
 
 Returning anything but `Plugin_Changed` sends what the client would get without the callback.
 
