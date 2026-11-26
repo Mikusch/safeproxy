@@ -22,7 +22,7 @@ jobs:
             container: ghcr.io/alliedmodders/build-containers/debian11-clang22:latest
             target: x86
             platform: linux32
-            sdks: tf2,css,dods,hl2dm,l4d2
+            sdks: tf2,css,dods,hl2dm,l4d,l4d2
           - os: ubuntu-latest
             container: ghcr.io/alliedmodders/build-containers/debian11-clang22:latest
             target: x86_64
@@ -31,7 +31,7 @@ jobs:
           - os: windows-latest
             target: x86
             platform: win32
-            sdks: tf2,css,dods,hl2dm,l4d2
+            sdks: tf2,css,dods,hl2dm,l4d,l4d2
           - os: windows-latest
             target: x86_64
             platform: win64

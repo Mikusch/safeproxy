@@ -436,7 +436,7 @@ void AutoDetectTransformingProxies()
 			{ "CBaseEntity", "m_hEffectEntity" },
 			{ "CBaseEntity", "moveparent" },
 		} },
-		// Outside L4D2, CBaseEntity's m_clrRender doesn't use SendProxy_Color32ToInt.
+		// Outside the L4D games, CBaseEntity's m_clrRender doesn't use SendProxy_Color32ToInt.
 		{ "Color32", DPT_Int, {PropType::Color32, sizeof(Rgba)}, {
 			{ "CLightGlow", "m_clrRender" },
 			{ "CSun", "m_clrRender" },
@@ -465,7 +465,7 @@ void AutoDetectTransformingProxies()
 #endif
 			{ "CParticleSystem", "m_vecOrigin" },
 			{ "CColorCorrection", "m_vecOrigin" },
-#if SOURCE_ENGINE != SE_LEFT4DEAD2
+#if SOURCE_ENGINE != SE_LEFT4DEAD && SOURCE_ENGINE != SE_LEFT4DEAD2
 			{ "CCSPlayer", "m_vecOrigin" },
 			{ "CCSPlayer", "csnonlocaldata.m_vecOrigin" },
 #endif
@@ -477,7 +477,7 @@ void AutoDetectTransformingProxies()
 			{ "CTFPlayer", "tfnonlocaldata.m_vecOrigin" },
 			{ "CHL2MP_Player", "m_vecOrigin" },
 			{ "CHL2MP_Player", "hl2mpnonlocaldata.m_vecOrigin" },
-#if SOURCE_ENGINE == SE_LEFT4DEAD2
+#if SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
 			{ "CCSPlayer", "cslocaldata.m_vecOrigin" },
 			{ "CTerrorPlayer", "cslocaldata.m_vecOrigin" },
 #endif
@@ -487,7 +487,7 @@ void AutoDetectTransformingProxies()
 			{ "CTFPlayer", "tfnonlocaldata.m_vecOrigin[2]" },
 			{ "CHL2MP_Player", "m_vecOrigin[2]" },
 			{ "CHL2MP_Player", "hl2mpnonlocaldata.m_vecOrigin[2]" },
-#if SOURCE_ENGINE == SE_LEFT4DEAD2
+#if SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
 			{ "CCSPlayer", "cslocaldata.m_vecOrigin[2]" },
 			{ "CTerrorPlayer", "cslocaldata.m_vecOrigin[2]" },
 #endif
@@ -536,7 +536,7 @@ void AutoDetectTransformingProxies()
 		{ "SendProxy_FuncRotatingSimulationTime", DPT_Int, {PropType::Float, sizeof(float)}, {
 			{ "CFuncRotating", "m_flSimulationTime" },
 		} },
-#if SOURCE_ENGINE == SE_LEFT4DEAD2
+#if SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
 		// Other games now send m_fFlags with the standard int proxy.
 		{ "SendProxy_CropFlagsToPlayerFlagBitsLength", DPT_Int, {PropType::Int, sizeof(int32_t)}, {
 			{ "CBasePlayer", "m_fFlags" },
