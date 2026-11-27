@@ -77,6 +77,9 @@ using PayloadPtr = std::shared_ptr<const Payload>;
 #if SOURCE_ENGINE == SE_LEFT4DEAD2
 // A prop index scheme bit, then the end marker, index 0xFFF in 7 + 7 bits.
 const Payload kNoProps{{0x7FFE}};
+#elif SOURCE_ENGINE == SE_LEFT4DEAD
+// Just the end marker.
+const Payload kNoProps{{0x3FFF}};
 #else
 const Payload kNoProps{{0}};
 #endif
@@ -544,7 +547,7 @@ void Transition(EntityState &st, const ServerClass *sc, const PayloadPtr &payloa
 // The engine keeps up to max(MAX_CLIENT_FRAMES, sv_maxreplay / interval) frames per client.
 constexpr int kEngineMinClientFrames = 128;
 ConVar *s_maxReplay;
-// L4D2 also keeps sv_maxclientframes frames, and sv_extra_client_connect_time seconds of frames after a client enters the game.
+// The L4D games also keep sv_maxclientframes frames, and sv_extra_client_connect_time seconds of frames after a client enters the game.
 ConVar *s_maxClientFrames;
 ConVar *s_extraConnectTime;
 

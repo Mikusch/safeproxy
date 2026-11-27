@@ -8,6 +8,7 @@
 			"game"	"cstrike"
 			"game"	"dod"
 			"game"	"hl2mp"
+			"game"	"left4dead"
 			"game"	"left4dead2"
 		}
 
@@ -134,6 +135,67 @@
 				"linux64"	"16"
 				"windows"	"12"
 				"windows64"	"16"
+			}
+		}
+	}
+
+	"left4dead"
+	{
+		"Signatures"
+		{
+			"SendTable_Encode"
+			{
+				"library"	"engine"
+				"windows"	"\x81\xEC\x60\x01\x00\x00\x53\x8B\x1D\x2A\x2A\x2A\x2A\x56\x57\x8B\xBC\x24\x70\x01\x00\x00\x8B\x77\x0C\x85\xF6\x75\x0E"
+			}
+			"SendTable_CalcDelta"
+			{
+				"library"	"engine"
+				"windows"	"\x81\xEC\x94\x00\x00\x00\x53\x8B\x9C\x24\x9C\x00\x00\x00\x55\x33\xC0\x38\x05\x2A\x2A\x2A\x2A\x56\x57\x89\x44\x24\x18\x89\x44\x24\x1C\x74\x1B"
+			}
+			"SV_ComputeClientPacks"
+			{
+				"library"	"engine"
+				"windows"	"\x83\xEC\x10\x8B\x0D\x2A\x2A\x2A\x2A\x53\x55\x56\x57\x6A\x02\x6A\x00\x68\x2A\x2A\x2A\x2A\x6A\x00\x68\x2A\x2A\x2A\x2A\xFF\x15\x2A\x2A\x2A\x2A\x8B\x1D\x2A\x2A\x2A\x2A\x8B\x03\x8B\x50\x64"
+			}
+			"CFrameSnapshotManager::GetPackedEntity"
+			{
+				"library"	"engine"
+				"windows"	"\x8B\x4C\x24\x04\x85\xC9\x75\x05\x33\xC0\xC2\x08\x00\x8B\x44\x24\x08\x8B\x49\x08\x8D\x04\x40\x8B\x44\x81\x08\x85\xC0\x74\xE9\x8B\x00\xC2\x08\x00"
+			}
+			"CBaseServer::WriteDeltaEntities"
+			{
+				"library"	"engine"
+				"windows"	"\x81\xEC\x6C\x01\x00\x00\x53\x55\x56\x83\xC8\xFF\x57\x68\x00\x01\x00\x00\x89\x44\x24\x48\x89\x44\x24\x4C\x89\x44\x24\x50\x33\xDB\x8D\x44\x24\x68\x53\x50\x8B\xF1"
+			}
+		}
+
+		"Offsets"
+		{
+			"CBaseEntity::ShouldTransmit"
+			{
+				"linux"		"18"
+				"windows"	"17"
+			}
+			"CBaseEntity::SetTransmit"
+			{
+				"linux"		"20"
+				"windows"	"19"
+			}
+			"CBaseClient::m_pBaseline"
+			{
+				"linux"		"256"
+				"windows"	"256"
+			}
+			"CBaseClient::m_nBaselineUpdateTick"
+			{
+				"linux"		"260"
+				"windows"	"260"
+			}
+			"CBaseClient::m_BaselinesSent"
+			{
+				"linux"		"264"
+				"windows"	"264"
 			}
 		}
 	}
